@@ -25,10 +25,18 @@ import {
   FiMessageCircle,
 } from 'react-icons/fi';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../../utils/date';
 import { ADMIN_EMAIL } from '../../utils/constants';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../hooks/useAuth';
+import { db, storage } from '../../firebase/config';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const AdminDashboard = () => {
+  const { user, updateUserProfile } = useAuth();
+  const [avatarUploadLoading, setAvatarUploadLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
   const [activeTab, setActiveTab] = useState('overview');
   const [pendingUsers, setPendingUsers] = useState([]);
   const [reportedPosts, setReportedPosts] = useState([]);
@@ -38,96 +46,68 @@ const AdminDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Dummy data
   useEffect(() => {
-    // Pending approval users
-    setPendingUsers([
-      {
-        id: 'p1',
-        name: 'Aditya Kumar',
-        section: 'CSE-2nd Year',
-        email: 'aditya.k@college.edu',
-        appliedAt: new Date(Date.now() - 3600000 * 3),
-        status: 'pending',
-      },
-      {
-        id: 'p2',
-        name: 'Zara Sheikh',
-        section: 'ECE-A',
-        email: 'zara.s@college.edu',
-        appliedAt: new Date(Date.now() - 3600000 * 5),
-        status: 'pending',
-      },
-      {
-        id: 'p3',
-        name: 'Mohammed Ali',
-        section: 'MECH-3rd Year',
-        email: 'mohammed.a@college.edu',
-        appliedAt: new Date(Date.now() - 3600000 * 8),
-        status: 'pending',
-      },
-      {
-        id: 'p4',
-        name: 'Ananya Gupta',
-        section: 'IT-B',
-        email: 'ananya.g@college.edu',
-        appliedAt: new Date(Date.now() - 3600000 * 12),
-        status: 'pending',
-      },
-      {
-        id: 'p5',
-        name: 'Rohan Deshmukh',
-        section: 'CIVIL-4th Year',
-        email: 'rohan.d@college.edu',
-        appliedAt: new Date(Date.now() - 3600000 * 24),
-        status: 'pending',
-      },
-    ]);
+    setAvatarPreview(user?.avatar || '');
+  }, [user]);
 
-    // Reported posts
-    setReportedPosts([
-      {
-        id: 'r1',
-        content: 'This professor is absolutely useless. Dont attend his classes...',
-        reports: 5,
-        user: 'Anonymous 23',
-        reportedBy: ['Anonymous 45', 'Anonymous 67', 'Anonymous 89'],
-        reason: 'Inappropriate content',
-        timestamp: new Date(Date.now() - 3600000 * 2),
-      },
-      {
-        id: 'r2',
-        content: 'Check out this link for free notes: spamlink.com...',
-        reports: 3,
-        user: 'Anonymous 67',
-        reportedBy: ['Anonymous 12', 'Anonymous 34'],
-        reason: 'Spam',
-        timestamp: new Date(Date.now() - 3600000 * 6),
-      },
-      {
-        id: 'r3',
-        content: 'Personal information about a student revealed...',
-        reports: 8,
-        user: 'Anonymous 112',
-        reportedBy: ['Anonymous 5', 'Anonymous 78', 'Anonymous 90'],
-        reason: 'Privacy violation',
-        timestamp: new Date(Date.now() - 3600000 * 1),
-      },
-    ]);
+  useEffect(() => {
+    if (!db) return;
 
-    // All users
-    setAllUsers([
-      { id: 'u1', name: 'Rahul Sharma', email: 'rahul.s@college.edu', section: 'CSE-A', status: 'active', posts: 12, joinedAt: new Date(Date.now() - 86400000 * 30) },
-      { id: 'u2', name: 'Priya Patel', email: 'priya.p@college.edu', section: 'ECE-B', status: 'active', posts: 8, joinedAt: new Date(Date.now() - 86400000 * 25) },
-      { id: 'u3', name: 'Arjun Reddy', email: 'arjun.r@college.edu', section: 'MECH-C', status: 'banned', posts: 15, joinedAt: new Date(Date.now() - 86400000 * 20) },
-      { id: 'u4', name: 'Sneha Gupta', email: 'sneha.g@college.edu', section: 'CSE-B', status: 'active', posts: 5, joinedAt: new Date(Date.now() - 86400000 * 15) },
-      { id: 'u5', name: 'Vikram Singh', email: 'vikram.s@college.edu', section: 'IT-A', status: 'active', posts: 20, joinedAt: new Date(Date.now() - 86400000 * 10) },
-    ]);
+    const usersRef = collection(db, 'users');
+    const usersQuery = query(usersRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      const loadedUsers = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          name: data.realName || data.displayName || data.username || data.email?.split('@')[0] || 'User',
+          email: data.email || '',
+          section: data.section || '',
+          status: data.status || 'pending',
+          posts: Number(data.posts || 0),
+          joinedAt: toDateSafe(data.createdAt),
+          ...data,
+        };
+      });
+
+      setAllUsers(loadedUsers);
+      setPendingUsers(loadedUsers.filter((u) => u.status === 'pending'));
+    }, (err) => {
+      console.error('Error listening for users:', err);
+      toast.error('Failed to load users');
+    });
+
+    const reportsRef = collection(db, 'reports');
+    const reportsQuery = query(reportsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribeReports = onSnapshot(reportsQuery, (snapshot) => {
+      const loadedReports = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          timestamp: toDateSafe(data.createdAt),
+          reportedBy: Array.isArray(data.reportedBy) ? data.reportedBy : [],
+          status: data.status || 'pending',
+        };
+      });
+
+      setReportedPosts(loadedReports);
+    }, (err) => {
+      console.error('Error listening for reports:', err);
+      toast.error('Failed to load reports');
+    });
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeReports();
+    };
   }, []);
 
   // Stats calculations
   const stats = {
-    totalUsers: allUsers.length + pendingUsers.length,
+    totalUsers: allUsers.length,
     activeUsers: allUsers.filter(u => u.status === 'active').length,
     bannedUsers: allUsers.filter(u => u.status === 'banned').length,
     pendingApprovals: pendingUsers.length,
@@ -135,48 +115,109 @@ const AdminDashboard = () => {
     totalPosts: allUsers.reduce((sum, u) => sum + u.posts, 0),
   };
 
-  const handleApprove = (userId) => {
-    setPendingUsers(prev => prev.filter(u => u.id !== userId));
-    toast.success('User approved successfully! ✅');
+  const handleApprove = async (userId) => {
+    if (!db) {
+      toast.error('Firestore unavailable');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        status: 'active',
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      toast.success('User approved successfully! ✅');
+    } catch (err) {
+      console.error('Error approving user:', err);
+      toast.error('Failed to approve user');
+    }
   };
 
-  const handleReject = (userId) => {
-    if (window.confirm('Are you sure you want to reject this user?')) {
-      setPendingUsers(prev => prev.filter(u => u.id !== userId));
+  const handleReject = async (userId) => {
+    if (!window.confirm('Are you sure you want to reject this user?')) return;
+    if (!db) {
+      toast.error('Firestore unavailable');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        status: 'rejected',
+        rejectedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
       toast.success('User rejected');
+    } catch (err) {
+      console.error('Error rejecting user:', err);
+      toast.error('Failed to reject user');
     }
   };
 
-  const handleBanUser = (userId) => {
-    if (window.confirm('Ban this user? They will not be able to access the platform.')) {
-      setAllUsers(prev =>
-        prev.map(u =>
-          u.id === userId ? { ...u, status: 'banned' } : u
-        )
-      );
+  const handleBanUser = async (userId) => {
+    if (!window.confirm('Ban this user? They will not be able to access the platform.')) return;
+
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        status: 'banned',
+        updatedAt: serverTimestamp(),
+      });
       toast.success('User banned successfully');
+    } catch (err) {
+      console.error('Error banning user:', err);
+      toast.error('Failed to ban user');
     }
   };
 
-  const handleUnbanUser = (userId) => {
-    setAllUsers(prev =>
-      prev.map(u =>
-        u.id === userId ? { ...u, status: 'active' } : u
-      )
-    );
-    toast.success('User unbanned');
+  const handleUnbanUser = async (userId) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        status: 'active',
+        updatedAt: serverTimestamp(),
+      });
+      toast.success('User unbanned');
+    } catch (err) {
+      console.error('Error unbanning user:', err);
+      toast.error('Failed to unban user');
+    }
   };
 
-  const handleDeletePost = (postId) => {
-    if (window.confirm('Delete this reported post?')) {
-      setReportedPosts(prev => prev.filter(p => p.id !== postId));
+  const handleDeletePost = async (reportId) => {
+    if (!window.confirm('Delete this reported post?')) return;
+
+    try {
+      const report = reportedPosts.find((item) => item.id === reportId);
+      if (report?.postId && db) {
+        await deleteDoc(doc(db, 'posts', report.postId));
+      }
+      if (!db) {
+        toast.error('Firestore unavailable');
+        return;
+      }
+      await updateDoc(doc(db, 'reports', reportId), {
+        status: 'resolved',
+        resolvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
       toast.success('Post deleted successfully');
+    } catch (err) {
+      console.error('Error deleting reported post:', err);
+      toast.error('Failed to delete reported post');
     }
   };
 
-  const handleDismissReport = (postId) => {
-    setReportedPosts(prev => prev.filter(p => p.id !== postId));
-    toast.success('Report dismissed');
+  const handleDismissReport = async (reportId) => {
+    try {
+      await updateDoc(doc(db, 'reports', reportId), {
+        status: 'dismissed',
+        dismissedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      toast.success('Report dismissed');
+    } catch (err) {
+      console.error('Error dismissing report:', err);
+      toast.error('Failed to dismiss report');
+    }
   };
 
   const handleRefresh = async () => {
@@ -244,7 +285,10 @@ const AdminDashboard = () => {
             className="glass-card"
           >
             <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-2`}>
-              <stat.icon className="text-white text-sm" />
+              {(() => {
+                const Icon = stat.icon;
+                return <Icon className="text-white text-sm" />;
+              })()}
             </div>
             <h3 className="text-xl font-bold text-[var(--text-primary)]">{stat.value}</h3>
             <div className="flex items-center justify-between">
@@ -268,7 +312,7 @@ const AdminDashboard = () => {
                 : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <tab.icon className="text-base" />
+            {(() => { const Icon = tab.icon; return <Icon className="text-base" />; })()}
             {tab.label}
             {tab.count > 0 && (
               <span className={`px-1.5 py-0.5 rounded-full text-xs ${
@@ -315,7 +359,7 @@ const AdminDashboard = () => {
                     transition={{ delay: index * 0.1 }}
                     className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-tertiary)]"
                   >
-                    <activity.icon className={`text-lg ${activity.color}`} />
+                    {(() => { const Icon = activity.icon; return <Icon className={`text-lg ${activity.color}`} />; })()}
                     <div className="flex-1">
                       <p className="text-sm text-[var(--text-primary)]">{activity.text}</p>
                       <p className="text-xs text-[var(--text-secondary)]">{activity.time}</p>
@@ -340,7 +384,7 @@ const AdminDashboard = () => {
                   onClick={action.onClick}
                   className="glass-card flex items-center gap-3 p-4"
                 >
-                  <action.icon className={`text-xl ${action.color}`} />
+                  {(() => { const Icon = action.icon; return <Icon className={`text-xl ${action.color}`} />; })()}
                   <span className="text-sm font-medium text-[var(--text-primary)]">
                     {action.label}
                   </span>
@@ -404,7 +448,7 @@ const AdminDashboard = () => {
                             {user.section} • {user.email}
                           </p>
                           <p className="text-xs text-[var(--text-secondary)] mt-1">
-                            Applied {formatDistanceToNow(user.appliedAt, { addSuffix: true })}
+                            Applied {formatDistanceToNow(toDateSafe(user.appliedAt), { addSuffix: true })}
                           </p>
                         </div>
                       </div>
@@ -474,7 +518,7 @@ const AdminDashboard = () => {
                           </span>
                         </div>
                         <span className="text-xs text-[var(--text-secondary)]">
-                          {formatDistanceToNow(post.timestamp, { addSuffix: true })}
+                          {formatDistanceToNow(toDateSafe(post.timestamp), { addSuffix: true })}
                         </span>
                       </div>
 

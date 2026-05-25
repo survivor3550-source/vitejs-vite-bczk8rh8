@@ -275,11 +275,7 @@ export const SystemThemeToggle = ({ size = 'md', className = '' }) => {
         animate={{ rotate: 0, scale: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
       >
-        <Icon className={`${currentSize.icon} ${
-          theme === 'dark' ? 'text-purple-400' :
-          theme === 'light' ? 'text-amber-400' :
-          'text-blue-400'
-        }`} />
+        <Icon className={`${currentSize.icon} text-[var(--text-secondary)]`} />
       </motion.div>
     </motion.button>
   );
@@ -318,7 +314,7 @@ export const TriStateThemeToggle = ({ size = 'md', className = '' }) => {
   return (
     <div className={`flex items-center gap-1 p-1 rounded-xl glass-morphism ${className}`}>
       {/* Dark Mode Button */}
-      <motion.button
+        <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={() => {
           setTheme('dark');
@@ -327,7 +323,7 @@ export const TriStateThemeToggle = ({ size = 'md', className = '' }) => {
         }}
         className={`${currentSize.button} rounded-lg transition-all ${
           theme === 'dark' 
-            ? 'bg-purple-500/20 text-purple-400' 
+            ? 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]' 
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
         }`}
         title="Dark Mode"
@@ -336,7 +332,7 @@ export const TriStateThemeToggle = ({ size = 'md', className = '' }) => {
       </motion.button>
 
       {/* Light Mode Button */}
-      <motion.button
+        <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={() => {
           setTheme('light');
@@ -345,7 +341,7 @@ export const TriStateThemeToggle = ({ size = 'md', className = '' }) => {
         }}
         className={`${currentSize.button} rounded-lg transition-all ${
           theme === 'light' 
-            ? 'bg-amber-500/20 text-amber-400' 
+            ? 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]' 
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
         }`}
         title="Light Mode"

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../../utils/date';
 import { 
   FiSend, 
   FiHeart, 
@@ -17,12 +18,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { ADMIN_EMAIL } from '../../utils/constants';
 import toast from 'react-hot-toast';
 
-const CommentSection = ({ postId, comments: initialComments = [] }) => {
+const CommentSection = ({ postId, comments: initialComments = [], onAddComment }) => {
   const [comments, setComments] = useState(initialComments);
   const [newComment, setNewComment] = useState('');
   const [likedComments, setLikedComments] = useState(new Set());
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyContent, setReplyContent] = useState('');
+
+  useEffect(() => {
+    setComments(initialComments);
+  }, [initialComments]);
   const [menuOpen, setMenuOpen] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -54,11 +59,8 @@ const CommentSection = ({ postId, comments: initialComments = [] }) => {
     setIsSubmitting(true);
     
     try {
-      // Firebase Firestore integration will be here
-      // await addDoc(collection(db, 'comments'), { ... });
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await onAddComment?.(postId, newComment.trim());
+
       const comment = {
         id: `comment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         postId,
@@ -252,7 +254,7 @@ const CommentSection = ({ postId, comments: initialComments = [] }) => {
                   </span>
                 )}
                 <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
-                  {formatDistanceToNow(new Date(comment.timestamp), { addSuffix: true })}
+                  {formatDistanceToNow(toDateSafe(comment.timestamp), { addSuffix: true })}
                 </span>
               </div>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FiUser, 
@@ -15,59 +15,91 @@ import {
   FiAlertCircle,
   FiCheckCircle,
   FiCopy,
-  FiInfo
+  FiInfo,
+  FiPlus,
 } from 'react-icons/fi';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { db, isFirebaseInitialized } from '../firebase/config';
 import { getRandomAvatar } from '../utils/avatarGenerator';
 import { generateUsername } from '../utils/usernameGenerator';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../utils/date';
 import toast from 'react-hot-toast';
+import CreatePostModal from '../Components/feed/CreatePostModal';
+import { usePosts } from '../hooks/usePosts';
 
 const ProfilePage = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
-  
-  const avatar = getRandomAvatar(user?.uid || 'default');
-  const username = generateUsername(user?.uid || 'default');
+  const [userPosts, setUserPosts] = useState([]);
+  const [stats, setStats] = useState({
+    totalPosts: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    memberSince: toDateSafe(user?.createdAt),
+  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const { addPost } = usePosts('latest');
+
+  const avatar = user?.avatar || getRandomAvatar(user?.uid || 'default');
+  const username = user?.username || generateUsername(user?.uid || 'default');
   const isAdmin = user?.email === ADMIN_EMAIL;
+  const isVerified = user?.verified;
 
-  // Dummy stats
-  const stats = {
-    totalPosts: 42,
-    totalLikes: 1250,
-    totalComments: 89,
-    memberSince: new Date(Date.now() - 86400000 * 45),
-  };
+  useEffect(() => {
+    if (!user?.uid || !isFirebaseInitialized() || !db) {
+      setUserPosts([]);
+      return;
+    }
 
-  // Dummy user posts
-  const userPosts = [
-    {
-      id: 'up1',
-      content: 'Finally submitted my thesis! The relief is unreal 🎉',
-      timestamp: new Date(Date.now() - 3600000 * 2),
-      likes: 45,
-      comments: 12,
-    },
-    {
-      id: 'up2',
-      content: 'Hot take: The library should be open 24/7 during exam season',
-      timestamp: new Date(Date.now() - 3600000 * 12),
-      likes: 89,
-      comments: 34,
-    },
-    {
-      id: 'up3',
-      content: 'Anyone else excited about the tech fest next month?',
-      timestamp: new Date(Date.now() - 86400000),
-      likes: 67,
-      comments: 23,
-    },
-  ];
+    const postsRef = collection(db, 'posts');
+    const postsQuery = query(
+      postsRef,
+      where('userId', '==', user.uid),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+      const postsData = snapshot.docs.map((docSnap) => {
+        const postData = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...postData,
+          createdAt: toDateSafe(postData.createdAt),
+          comments: Array.isArray(postData.comments) ? postData.comments : [],
+        };
+      });
+
+      setUserPosts(postsData);
+      setStats({
+        totalPosts: postsData.length,
+        totalLikes: postsData.reduce((sum, post) => sum + (post.likes || 0), 0),
+        totalComments: postsData.reduce((sum, post) => sum + (post.comments?.length || 0), 0),
+        memberSince: toDateSafe(user?.createdAt),
+      });
+    }, (err) => {
+      console.error('Failed to load profile posts:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleCopyUsername = () => {
     navigator.clipboard.writeText(username);
     toast.success('Username copied! 📋');
+  };
+
+  const handlePostSubmit = async (content) => {
+    try {
+      await addPost(content);
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Error posting from profile:', err);
+    }
   };
 
   const handleLogout = async () => {
@@ -99,6 +131,22 @@ const ProfilePage = () => {
         </p>
       </motion.div>
 
+      <div className="glass-card bg-black/90 border border-white/10 text-white p-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[.3em] text-white/70 mb-2">Conferia</p>
+            <h2 className="text-xl font-semibold">Anonymous posting backed by verified moderation</h2>
+            <p className="text-xs text-white/70 mt-1 max-w-xl">
+              Your private profile is only visible to you and administrators. Verified students earn a trusted badge across the network.
+            </p>
+          </div>
+          <div className="text-right text-xs text-white/60">
+            <span className="block">Real Firebase profile data</span>
+            <span className="block">Auto-approved users: test102@gmail.com</span>
+          </div>
+        </div>
+      </div>
+
       {/* Profile Card */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -129,18 +177,12 @@ const ProfilePage = () => {
           {/* Username */}
           <div className="mt-4">
             <div className="flex items-center justify-center gap-2">
-              <h2 className="text-2xl font-bold text-[var(--text-primary)]">
-                {username}
-              </h2>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={handleCopyUsername}
-                className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-purple-400 hover:bg-purple-500/10 transition-all"
-                title="Copy username"
-              >
-                <FiCopy className="text-sm" />
-              </motion.button>
+              <h2 className="text-2xl font-bold text-[var(--text-primary)]">{username}</h2>
+              {isVerified && (
+                <span className="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-300 font-medium">
+                  Verified
+                </span>
+              )}
             </div>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
               Your anonymous identity on campus
@@ -155,9 +197,11 @@ const ProfilePage = () => {
                 Admin
               </span>
             )}
-            <span className="px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs font-medium flex items-center gap-1">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+              isVerified ? 'bg-blue-500/10 text-blue-300' : 'bg-yellow-500/10 text-yellow-400'
+            }`}>
               <FiCheckCircle className="text-xs" />
-              Verified Student
+              {isVerified ? 'Verified Student' : 'Pending Verification'}
             </span>
           </div>
         </div>
@@ -176,7 +220,10 @@ const ProfilePage = () => {
               transition={{ delay: 0.3 + index * 0.1 }}
               className="text-center"
             >
-              <stat.icon className={`text-lg mx-auto mb-1 ${stat.color}`} />
+              {(() => {
+                const Icon = stat.icon;
+                return <Icon className={`text-lg mx-auto mb-1 ${stat.color}`} />;
+              })()}
               <h3 className="text-xl font-bold text-[var(--text-primary)]">{stat.value}</h3>
               <p className="text-xs text-[var(--text-secondary)]">{stat.label}</p>
             </motion.div>
@@ -197,7 +244,7 @@ const ProfilePage = () => {
                 : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <tab.icon className="text-base" />
+            {(() => { const Icon = tab.icon; return <Icon className="text-base" />; })()}
             {tab.label}
           </motion.button>
         ))}
@@ -245,9 +292,8 @@ const ProfilePage = () => {
                   <FiGrid className="text-purple-400 text-lg flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-secondary)]">Section / Class</p>
-                    <p className="font-medium text-sm text-[var(--text-primary)] flex items-center gap-1">
-                      <FiShield className="text-purple-400 text-xs" />
-                      Hidden for privacy
+                    <p className="font-medium text-sm text-[var(--text-primary)]">
+                      {user?.section || 'Not provided'}
                     </p>
                   </div>
                 </div>
@@ -268,7 +314,8 @@ const ProfilePage = () => {
                     <p className="text-xs text-[var(--text-secondary)]">Account Status</p>
                     <p className="font-medium text-sm text-green-400 flex items-center gap-1">
                       <FiCheckCircle className="text-xs" />
-                      Active & Verified
+                      {user?.isApproved ? 'Active' : 'Pending Approval'}
+                      {isVerified ? ' • Verified' : ''}
                     </p>
                   </div>
                 </div>
@@ -323,7 +370,7 @@ const ProfilePage = () => {
                   </p>
                   <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
                     <span>
-                      {formatDistanceToNow(post.timestamp, { addSuffix: true })}
+                            {formatDistanceToNow(post.createdAt, { addSuffix: true })}
                     </span>
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1">
@@ -415,6 +462,22 @@ const ProfilePage = () => {
       >
         <FiLogOut className="text-lg" />
         Sign Out
+      </motion.button>
+
+      <CreatePostModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handlePostSubmit}
+      />
+
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsModalOpen(true)}
+        className="fixed bottom-8 right-8 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-purple-500 text-white shadow-2xl shadow-purple-500/30 hover:bg-purple-600"
+        aria-label="Create new post"
+      >
+        <FiPlus className="text-2xl" />
       </motion.button>
 
       {/* App Version */}

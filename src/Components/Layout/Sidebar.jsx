@@ -80,11 +80,11 @@ const Sidebar = ({ theme, toggleTheme }) => {
           >
             {({ isActive }) => (
               <>
-                <item.icon
-                  className={`text-lg transition-transform duration-200 ${
+                {(() => { const Icon = item.icon; return (
+                  <Icon className={`text-lg transition-transform duration-200 ${
                     isActive ? 'scale-110' : 'group-hover:scale-105'
-                  }`}
-                />
+                  }`} />
+                ); })()}
                 <div className="flex-1">
                   <span className="font-medium text-sm">{item.label}</span>
                   <p className="text-xs text-[var(--text-secondary)] mt-0.5">

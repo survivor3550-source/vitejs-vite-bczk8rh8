@@ -80,7 +80,7 @@ const EmptyState = ({
   };
 
   const selectedVariant = variants[variant] || variants.default;
-  const DisplayIcon = icon || selectedVariant.icon;
+  const DisplayIcon = Icon || selectedVariant.icon;
 
   // Size configurations
   const sizes = {

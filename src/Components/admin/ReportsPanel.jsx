@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../../utils/date';
 import {
   FiFlag,
   FiAlertTriangle,
@@ -25,6 +26,8 @@ import {
   FiCheck,
   FiX,
 } from 'react-icons/fi';
+import { collection, query, orderBy, getDocs, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db, isFirebaseInitialized } from '../../firebase/config';
 import toast from 'react-hot-toast';
 
 const ReportsPanel = () => {
@@ -46,107 +49,36 @@ const ReportsPanel = () => {
 
   const loadReports = async () => {
     setLoading(true);
-    // Firebase Firestore integration will be here
-    // const snapshot = await getDocs(query(collection(db, 'reports'), where('status', '==', 'pending')));
-    
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    setReports([
-      {
-        id: 'r1',
-        postId: 'post123',
-        content: 'This professor is absolutely useless. Dont attend his classes. Complete waste of time and money...',
-        reports: 5,
-        reportedUser: 'Anonymous 23',
-        reportedBy: [
-          { username: 'Anonymous 45', reason: 'Inappropriate content' },
-          { username: 'Anonymous 67', reason: 'Offensive language' },
-          { username: 'Anonymous 89', reason: 'Harassment' },
-          { username: 'Anonymous 112', reason: 'Hate speech' },
-          { username: 'Anonymous 156', reason: 'Inappropriate content' },
-        ],
-        reason: 'Inappropriate content',
-        status: 'pending',
-        timestamp: new Date(Date.now() - 3600000 * 2),
-        postTimestamp: new Date(Date.now() - 3600000 * 4),
-        priority: 'high',
-      },
-      {
-        id: 'r2',
-        content: 'Check out this link for free notes and exam papers: spamlink.com. Guaranteed A+ grades...',
-        reports: 3,
-        reportedUser: 'Anonymous 67',
-        reportedBy: [
-          { username: 'Anonymous 12', reason: 'Spam' },
-          { username: 'Anonymous 34', reason: 'Misleading content' },
-          { username: 'Anonymous 78', reason: 'Spam' },
-        ],
-        reason: 'Spam',
-        status: 'pending',
-        timestamp: new Date(Date.now() - 3600000 * 6),
-        postTimestamp: new Date(Date.now() - 3600000 * 8),
-        priority: 'medium',
-      },
-      {
-        id: 'r3',
-        content: 'Personal information about a student revealed. Phone: 9876543210, Address: Room 302, Hostel B...',
-        reports: 8,
-        reportedUser: 'Anonymous 112',
-        reportedBy: [
-          { username: 'Anonymous 5', reason: 'Privacy violation' },
-          { username: 'Anonymous 78', reason: 'Personal information' },
-          { username: 'Anonymous 90', reason: 'Doxing' },
-          { username: 'Anonymous 145', reason: 'Privacy violation' },
-          { username: 'Anonymous 200', reason: 'Safety concern' },
-          { username: 'Anonymous 234', reason: 'Privacy violation' },
-          { username: 'Anonymous 256', reason: 'Personal attack' },
-          { username: 'Anonymous 289', reason: 'Doxing' },
-        ],
-        reason: 'Privacy violation',
-        status: 'pending',
-        timestamp: new Date(Date.now() - 3600000 * 1),
-        postTimestamp: new Date(Date.now() - 3600000 * 2),
-        priority: 'critical',
-      },
-      {
-        id: 'r4',
-        content: 'I hate everyone in section C. They are all stupid and deserve to fail...',
-        reports: 4,
-        reportedUser: 'Anonymous 89',
-        reportedBy: [
-          { username: 'Anonymous 34', reason: 'Bullying' },
-          { username: 'Anonymous 56', reason: 'Hate speech' },
-          { username: 'Anonymous 78', reason: 'Harassment' },
-          { username: 'Anonymous 90', reason: 'Offensive' },
-        ],
-        reason: 'Bullying',
-        status: 'resolved',
-        timestamp: new Date(Date.now() - 3600000 * 24),
-        postTimestamp: new Date(Date.now() - 3600000 * 26),
-        priority: 'medium',
-        resolvedBy: 'Admin',
-        resolvedAt: new Date(Date.now() - 3600000 * 12),
-      },
-      {
-        id: 'r5',
-        content: 'Reposting the same message for the 10th time. Buy my notes for 500 rupees...',
-        reports: 2,
-        reportedUser: 'Anonymous 200',
-        reportedBy: [
-          { username: 'Anonymous 45', reason: 'Spam' },
-          { username: 'Anonymous 67', reason: 'Repetitive content' },
-        ],
-        reason: 'Spam',
-        status: 'dismissed',
-        timestamp: new Date(Date.now() - 3600000 * 48),
-        postTimestamp: new Date(Date.now() - 3600000 * 50),
-        priority: 'low',
-        dismissedBy: 'Admin',
-        dismissedAt: new Date(Date.now() - 3600000 * 24),
-      },
-    ]);
-    
-    setLoading(false);
+    if (!isFirebaseInitialized() || !db) {
+      setReports([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const reportsRef = collection(db, 'reports');
+      const reportsQuery = query(reportsRef, orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(reportsQuery);
+
+      const loadedReports = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          timestamp: toDateSafe(data.createdAt),
+          reportedBy: Array.isArray(data.reportedBy) ? data.reportedBy : [],
+          reason: data.reason || 'Report',
+          status: data.status || 'pending',
+        };
+      });
+
+      setReports(loadedReports);
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+      toast.error('Failed to load reports');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRefresh = async () => {
@@ -157,41 +89,73 @@ const ReportsPanel = () => {
   };
 
   const handleDeletePost = async (reportId) => {
-    // Firebase: Delete post and update report status
-    // await deleteDoc(doc(db, 'posts', postId));
-    // await updateDoc(doc(db, 'reports', reportId), { status: 'resolved', resolvedAt: new Date() });
-    
-    setReports(prev => 
-      prev.map(r => 
-        r.id === reportId 
-          ? { ...r, status: 'resolved', resolvedAt: new Date() }
-          : r
-      )
-    );
-    toast.success('Post deleted and report resolved! 🗑️');
-    setShowConfirmDialog(null);
+    if (!window.confirm('Delete this reported post?')) return;
+
+    try {
+      const report = reports.find((item) => item.id === reportId);
+      if (report?.postId && isFirebaseInitialized() && db) {
+        await deleteDoc(doc(db, 'posts', report.postId));
+      }
+      if (isFirebaseInitialized() && db) {
+        await updateDoc(doc(db, 'reports', reportId), {
+          status: 'resolved',
+          resolvedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      toast.success('Post deleted and report resolved! 🗑️');
+      setShowConfirmDialog(null);
+    } catch (err) {
+      console.error('Error deleting reported post:', err);
+      toast.error('Failed to delete reported post');
+    }
   };
 
-  const handleDismissReport = (reportId) => {
-    setReports(prev => 
-      prev.map(r => 
-        r.id === reportId 
-          ? { ...r, status: 'dismissed', dismissedAt: new Date() }
-          : r
-      )
-    );
-    toast.success('Report dismissed');
+  const handleDismissReport = async (reportId) => {
+    try {
+      if (isFirebaseInitialized() && db) {
+        await updateDoc(doc(db, 'reports', reportId), {
+          status: 'dismissed',
+          dismissedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === reportId
+            ? { ...r, status: 'dismissed', dismissedAt: new Date() }
+            : r
+        )
+      );
+      toast.success('Report dismissed');
+    } catch (err) {
+      console.error('Error dismissing report:', err);
+      toast.error('Failed to dismiss report');
+    }
   };
 
-  const handleResolveReport = (reportId) => {
-    setReports(prev => 
-      prev.map(r => 
-        r.id === reportId 
-          ? { ...r, status: 'resolved', resolvedAt: new Date() }
-          : r
-      )
-    );
-    toast.success('Report resolved! ✅');
+  const handleResolveReport = async (reportId) => {
+    try {
+      if (isFirebaseInitialized() && db) {
+        await updateDoc(doc(db, 'reports', reportId), {
+          status: 'resolved',
+          resolvedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === reportId
+            ? { ...r, status: 'resolved', resolvedAt: new Date() }
+            : r
+        )
+      );
+      toast.success('Report resolved! ✅');
+    } catch (err) {
+      console.error('Error resolving report:', err);
+      toast.error('Failed to resolve report');
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -254,14 +218,14 @@ const ReportsPanel = () => {
     .sort((a, b) => {
       switch (sortBy) {
         case 'oldest':
-          return new Date(a.timestamp) - new Date(b.timestamp);
+          return toDateSafe(a.timestamp) - toDateSafe(b.timestamp);
         case 'reports':
           return b.reports - a.reports;
         case 'priority':
           const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
           return priorityOrder[a.priority] - priorityOrder[b.priority];
         default:
-          return new Date(b.timestamp) - new Date(a.timestamp);
+          return toDateSafe(b.timestamp) - toDateSafe(a.timestamp);
       }
     });
 
@@ -360,7 +324,10 @@ const ReportsPanel = () => {
             className="glass-card text-center"
           >
             <div className={`w-8 h-8 mx-auto rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-2`}>
-              <stat.icon className="text-white text-sm" />
+              {(() => {
+                const Icon = stat.icon;
+                return <Icon className="text-white text-sm" />;
+              })()}
             </div>
             <h3 className="text-xl font-bold text-[var(--text-primary)]">{stat.value}</h3>
             <p className="text-xs text-[var(--text-secondary)]">{stat.label}</p>
@@ -495,7 +462,7 @@ const ReportsPanel = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-[var(--text-secondary)]">
-                        {formatDistanceToNow(report.timestamp, { addSuffix: true })}
+                        {formatDistanceToNow(toDateSafe(report.timestamp), { addSuffix: true })}
                       </span>
                       <button
                         onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
@@ -533,7 +500,7 @@ const ReportsPanel = () => {
                       </span>
                       <span className="flex items-center gap-1">
                         <FiClock className="text-xs" />
-                        {formatDistanceToNow(report.postTimestamp, { addSuffix: true })}
+                        {formatDistanceToNow(toDateSafe(report.postTimestamp), { addSuffix: true })}
                       </span>
                     </div>
                     <span className="flex items-center gap-1">
@@ -606,7 +573,7 @@ const ReportsPanel = () => {
                             <div className="mt-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
                               <p className="text-xs text-green-400 flex items-center gap-1">
                                 <FiCheckCircle />
-                                Resolved {formatDistanceToNow(report.resolvedAt, { addSuffix: true })}
+                                Resolved {formatDistanceToNow(toDateSafe(report.resolvedAt), { addSuffix: true })}
                               </p>
                             </div>
                           )}
@@ -614,7 +581,7 @@ const ReportsPanel = () => {
                             <div className="mt-3 p-3 rounded-lg bg-gray-500/5 border border-gray-500/10">
                               <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1">
                                 <FiInfo />
-                                Dismissed {formatDistanceToNow(report.dismissedAt, { addSuffix: true })}
+                                Dismissed {formatDistanceToNow(toDateSafe(report.dismissedAt), { addSuffix: true })}
                               </p>
                             </div>
                           )}
@@ -644,7 +611,7 @@ const ReportsPanel = () => {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-card max-w-md w-full"
+              className="glass-card max-w-sm w-full max-h-[85vh] overflow-y-auto"
             >
               <div className="text-center">
                 <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-500/10 flex items-center justify-center">

@@ -10,11 +10,11 @@ import {
   FiLogOut,
   FiHome,
 } from 'react-icons/fi';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
-import AdminDashboard from '../components/admin/AdminDashboard';
-import PendingUsers from '../components/admin/PendingUsers';
-import ReportsPanel from '../components/admin/ReportsPanel';
+import AdminDashboard from '../Components/admin/AdminDashboard';
+import PendingUsers from '../Components/admin/PendingUsers';
+import ReportsPanel from '../Components/admin/ReportsPanel';
 import toast from 'react-hot-toast';
 
 const AdminPage = () => {
@@ -121,7 +121,7 @@ const AdminPage = () => {
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }`}
               >
-                <tab.icon className="text-lg" />
+                {(() => { const Icon = tab.icon; return <Icon className="text-lg" />; })()}
                 {tab.label}
               </motion.button>
             ))}

@@ -9,23 +9,36 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { auth, db, isFirebaseInitialized } from '../firebase/config';
 import { generateUsername } from '../utils/usernameGenerator';
 import { getRandomAvatar } from '../utils/avatarGenerator';
-import { ADMIN_EMAIL } from '../utils/constants';
+import { ADMIN_EMAIL, AUTO_APPROVED_EMAILS } from '../utils/constants';
 import toast from 'react-hot-toast';
+
+const isAutoApprovedEmail = (email) => {
+  if (!email) return false;
+  return AUTO_APPROVED_EMAILS.includes(email.toLowerCase());
+};
 
 // Create Auth Context
 const AuthContext = createContext(null);
 
 // Auth Provider Component
 export const AuthProvider = ({ children }) => {
+  const firebaseReady = isFirebaseInitialized();
+  const mockAuth = useMockAuth();
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Listen for auth state changes
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
@@ -34,13 +47,23 @@ export const AuthProvider = ({ children }) => {
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            const approved = userData.status === 'active' || isAutoApprovedEmail(firebaseUser.email);
+
+            if (userData.status !== 'active' && approved) {
+              await updateDoc(doc(db, 'users', firebaseUser.uid), {
+                status: 'active',
+                updatedAt: serverTimestamp(),
+              });
+            }
+
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               displayName: userData.displayName || firebaseUser.displayName,
               username: userData.username,
               avatar: userData.avatar,
-              isApproved: userData.status === 'active',
+              verified: userData.verified || false,
+              isApproved: approved,
               isAdmin: firebaseUser.email === ADMIN_EMAIL,
               section: userData.section,
               realName: userData.realName,
@@ -53,7 +76,8 @@ export const AuthProvider = ({ children }) => {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               displayName: firebaseUser.displayName,
-              isApproved: false,
+              isApproved: isAutoApprovedEmail(firebaseUser.email),
+              verified: false,
               isAdmin: firebaseUser.email === ADMIN_EMAIL,
             });
           }
@@ -63,7 +87,8 @@ export const AuthProvider = ({ children }) => {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
-            isApproved: false,
+            isApproved: isAutoApprovedEmail(firebaseUser.email),
+            verified: false,
             isAdmin: firebaseUser.email === ADMIN_EMAIL,
           });
         }
@@ -92,7 +117,7 @@ export const AuthProvider = ({ children }) => {
         const userData = userDoc.data();
         
         // Check if user is approved
-        if (userData.status !== 'active' && email !== ADMIN_EMAIL) {
+        if (userData.status !== 'active' && !isAutoApprovedEmail(email)) {
           await signOut(auth);
           throw new Error('Account pending approval');
         }
@@ -161,8 +186,9 @@ export const AuthProvider = ({ children }) => {
         username: username,
         avatar: avatar,
         displayName: username,
-        status: email === ADMIN_EMAIL ? 'active' : 'pending', // Auto-approve admin
+        status: isAutoApprovedEmail(email) ? 'active' : 'pending',
         role: email === ADMIN_EMAIL ? 'admin' : 'student',
+        verified: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         posts: 0,
@@ -270,9 +296,9 @@ export const AuthProvider = ({ children }) => {
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   // Check if user is approved
-  const isApproved = user?.isApproved || user?.email === ADMIN_EMAIL;
+  const isApproved = user?.isApproved || user?.email === ADMIN_EMAIL || isAutoApprovedEmail(user?.email);
 
-  const value = {
+  const value = (!firebaseReady || !auth || !db) ? mockAuth : {
     user,
     loading,
     error,

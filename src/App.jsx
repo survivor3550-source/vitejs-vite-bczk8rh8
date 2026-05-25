@@ -1,14 +1,14 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { Component, useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 
 // Layout
-import Layout from './components/layout/Layout';
+import Layout from './Components/Layout/Layout';
 
 // Auth
-import AuthGuard, { AdminGuard } from './components/auth/AuthGuard';
-import { AuthProvider } from './hooks/useAuth';
+import AuthGuard, { AdminGuard } from './Components/Auth/AuthGuard';
+import { AuthProvider } from './hooks/useAuth.jsx';
 
 // Pages - Lazy loaded for better performance
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -75,6 +75,33 @@ const ErrorFallback = ({ error, resetErrorBoundary }) => (
   </div>
 );
 
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('App caught error:', error, errorInfo);
+  }
+
+  resetError = () => {
+    this.setState({ error: null });
+  };
+
+  render() {
+    if (this.state.error) {
+      return <ErrorFallback error={this.state.error} resetErrorBoundary={this.resetError} />;
+    }
+
+    return this.props.children;
+  }
+}
+
 // Scroll to top on route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -128,11 +155,12 @@ function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <ScrollToTop />
-      
-      {/* Toast Notifications */}
-      <Toaster
+    <AppErrorBoundary>
+      <AuthProvider>
+        <ScrollToTop />
+        
+        {/* Toast Notifications */}
+        <Toaster
         position="top-center"
         reverseOrder={false}
         gutter={8}
@@ -325,6 +353,7 @@ function App() {
         </Suspense>
       </Layout>
     </AuthProvider>
+    </AppErrorBoundary>
   );
 }
 

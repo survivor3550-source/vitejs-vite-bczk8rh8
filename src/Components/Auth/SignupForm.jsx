@@ -2,19 +2,11 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { 
-  FiUser, 
-  FiMail, 
-  FiLock, 
-  FiGrid, 
-  FiEye, 
-  FiEyeOff, 
-  FiUserPlus,
-  FiCheck,
-  FiX,
-  FiShield
-} from 'react-icons/fi';
+import { FiUser, FiMail, FiLock, FiGrid, FiEye, FiEyeOff, FiUserPlus, FiCheck } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
+
+const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+const strengthClasses = ['bg-red-500', 'bg-orange-500', 'bg-amber-400', 'bg-sky-400', 'bg-emerald-400'];
 
 const SignupForm = () => {
   const [formData, setFormData] = useState({
@@ -27,11 +19,10 @@ const SignupForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
-  
+
   const { signup } = useAuth();
   const navigate = useNavigate();
 
-  // Password strength checker
   const getPasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 8) strength++;
@@ -42,12 +33,12 @@ const SignupForm = () => {
   };
 
   const passwordStrength = getPasswordStrength(formData.password);
-  const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
-  const strengthColors = ['red', 'orange', 'yellow', 'blue', 'green'];
+  const strengthColorClass = ['bg-red-500', 'bg-orange-500', 'bg-amber-400', 'bg-sky-400', 'bg-emerald-400'][Math.min(passwordStrength, 4)];
+  const strengthTextClass = ['text-red-500', 'text-orange-500', 'text-amber-400', 'text-sky-400', 'text-emerald-400'][Math.min(passwordStrength, 4)];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const validateStep1 = () => {
@@ -79,8 +70,7 @@ const SignupForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validation
+
     if (!formData.section.trim()) {
       toast.error('Please enter your section/class');
       return;
@@ -99,24 +89,11 @@ const SignupForm = () => {
     }
 
     setLoading(true);
-    
+
     try {
-      // Firebase authentication will be integrated here
-      // await createUserWithEmailAndPassword(auth, email, password);
-      // Then save user data to Firestore with pending status
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      await signup(
-        formData.email,
-        formData.password,
-        formData.fullName,
-        formData.section
-      );
-      
-      toast.success('Account created! Awaiting admin approval ✨', {
-        duration: 4000,
-      });
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await signup(formData.email, formData.password, formData.fullName, formData.section);
+      toast.success('Account created! Awaiting admin approval ✨', { duration: 4000 });
       navigate('/waiting-approval');
     } catch (error) {
       toast.error('Registration failed. Please try again.');
@@ -133,91 +110,68 @@ const SignupForm = () => {
       transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       className="w-full max-w-md mx-auto"
     >
-      <div className="glass-card relative overflow-hidden">
-        {/* Decorative gradient line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500" />
-        
-        {/* Header */}
+      <div className="rounded-3xl border border-white/10 bg-[#070707] p-8 shadow-[0_25px_80px_-40px_rgba(0,0,0,0.75)] relative overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-1 bg-slate-700" />
+
         <div className="text-center mb-8 pt-4">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center"
-          >
-            <FiUserPlus className="text-2xl text-white" />
-          </motion.div>
-          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Join Conferia
-          </h1>
-          <p className="text-[var(--text-secondary)] text-sm flex items-center justify-center gap-2">
-            <FiShield className="text-purple-400" />
-            Your identity stays anonymous. Always.
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-900 flex items-center justify-center text-white">
+            <FiUserPlus className="text-2xl" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Join Conferia</h1>
+          <p className="text-slate-400 text-sm flex items-center justify-center gap-2">
+            <FiLock className="text-slate-400" /> Your identity stays anonymous. Always.
           </p>
         </div>
 
-        {/* Progress Steps */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-            step >= 1 ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-400'
-          }`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 1 ? 'bg-sky-500 text-black' : 'bg-slate-700 text-slate-400'}`}>
             {step > 1 ? <FiCheck className="text-sm" /> : '1'}
           </div>
-          <div className={`w-12 h-0.5 transition-all ${step >= 2 ? 'bg-purple-500' : 'bg-gray-700'}`} />
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-            step >= 2 ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-400'
-          }`}>
+          <div className={`h-1 flex-1 rounded-full ${step >= 2 ? 'bg-sky-500' : 'bg-slate-700'}`} />
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 2 ? 'bg-sky-500 text-black' : 'bg-slate-700 text-slate-400'}`}>
             2
           </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Step 1: Personal Information */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: step === 1 ? 1 : 0, x: step === 1 ? 0 : -20 }}
-            className={step === 1 ? 'block' : 'hidden'}
-          >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className={step === 1 ? 'block' : 'hidden'}>
             <div className="space-y-5">
-              {/* Full Name */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1">
+                <label className="text-sm font-medium text-slate-300 flex items-center gap-1">
                   Full Name
                   <span className="text-red-400">*</span>
                 </label>
-                <div className="relative group">
-                  <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                <div className="relative">
+                  <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
-                    className="glass-input pl-10 pr-4"
+                    className="w-full rounded-3xl border border-slate-800 bg-[#0f0f0f] px-10 py-3 text-sm text-white outline-none transition focus:border-sky-400"
                     placeholder="Priya Sharma"
                     required
                     autoComplete="name"
                   />
                 </div>
-                <p className="text-xs text-[var(--text-secondary)] ml-1 flex items-center gap-1">
-                  <FiShield className="text-purple-400 text-xs" />
-                  Only visible to admins for verification
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                  <FiLock className="text-slate-500 text-xs" /> Only visible to admins for verification
                 </p>
               </div>
 
-              {/* Email */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1">
+                <label className="text-sm font-medium text-slate-300 flex items-center gap-1">
                   College Email
                   <span className="text-red-400">*</span>
                 </label>
-                <div className="relative group">
-                  <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                <div className="relative">
+                  <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="glass-input pl-10 pr-4"
+                    className="w-full rounded-3xl border border-slate-800 bg-[#0f0f0f] px-10 py-3 text-sm text-white outline-none transition focus:border-sky-400"
                     placeholder="you@college.edu"
                     required
                     autoComplete="email"
@@ -225,61 +179,52 @@ const SignupForm = () => {
                 </div>
               </div>
 
-              {/* Next Button */}
               <motion.button
                 type="button"
                 onClick={handleNextStep}
-                className="glass-button w-full text-white flex items-center justify-center gap-2 mt-6"
+                className="w-full rounded-3xl bg-sky-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-sky-400"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
                 Continue
-                <span className="text-lg">→</span>
               </motion.button>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Step 2: Account Setup */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: step === 2 ? 1 : 0, x: step === 2 ? 0 : 20 }}
-            className={step === 2 ? 'block' : 'hidden'}
-          >
+          <div className={step === 2 ? 'block' : 'hidden'}>
             <div className="space-y-5">
-              {/* Section/Class */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1">
+                <label className="text-sm font-medium text-slate-300 flex items-center gap-1">
                   Section / Class
                   <span className="text-red-400">*</span>
                 </label>
-                <div className="relative group">
-                  <FiGrid className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                <div className="relative">
+                  <FiGrid className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
                     name="section"
                     value={formData.section}
                     onChange={handleChange}
-                    className="glass-input pl-10 pr-4"
-                    placeholder="CSE-A / ECE-3rd Year"
+                    className="w-full rounded-3xl border border-slate-800 bg-[#0f0f0f] px-10 py-3 text-sm text-white outline-none transition focus:border-sky-400"
+                    placeholder="CSE-A / ECE 3rd year"
                     required
                   />
                 </div>
               </div>
 
-              {/* Password */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1">
+                <label className="text-sm font-medium text-slate-300 flex items-center gap-1">
                   Password
                   <span className="text-red-400">*</span>
                 </label>
-                <div className="relative group">
-                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                <div className="relative">
+                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className="glass-input pl-10 pr-12"
+                    className="w-full rounded-3xl border border-slate-800 bg-[#0f0f0f] px-10 py-3 pr-12 text-sm text-white outline-none transition focus:border-sky-400"
                     placeholder="Min. 8 characters"
                     required
                     autoComplete="new-password"
@@ -287,133 +232,66 @@ const SignupForm = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--text-primary)] transition-colors p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                     tabIndex={-1}
                   >
-                    {showPassword ? <FiEyeOff className="text-lg" /> : <FiEye className="text-lg" />}
+                    {showPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
                   </button>
                 </div>
-                {/* Password Strength Indicator */}
                 {formData.password && (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <div className="flex gap-1">
                       {[1, 2, 3, 4].map((level) => (
                         <div
                           key={level}
-                          className={`h-1 flex-1 rounded-full transition-all ${
-                            level <= passwordStrength
-                              ? `bg-${strengthColors[passwordStrength]}-500`
-                              : 'bg-gray-700'
-                          }`}
+                          className={`h-1 flex-1 rounded-full ${level <= passwordStrength ? strengthColorClass : 'bg-slate-700'}`}
                         />
                       ))}
                     </div>
-                    <p className={`text-xs text-${strengthColors[passwordStrength]}-400`}>
+                    <p className={`text-xs ${strengthTextClass}`}>
                       {strengthLabels[passwordStrength]}
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Confirm Password */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1">
-                  Confirm Password
-                  <span className="text-red-400">*</span>
-                </label>
-                <div className="relative group">
-                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                <label className="text-sm font-medium text-slate-300">Confirm Password</label>
+                <div className="relative">
+                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type="password"
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="glass-input pl-10 pr-4"
-                    placeholder="Re-enter password"
+                    className="w-full rounded-3xl border border-slate-800 bg-[#0f0f0f] px-10 py-3 text-sm text-white outline-none transition focus:border-sky-400"
+                    placeholder="Repeat password"
                     required
                     autoComplete="new-password"
                   />
-                  {formData.confirmPassword && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {formData.password === formData.confirmPassword ? (
-                        <FiCheck className="text-green-400" />
-                      ) : (
-                        <FiX className="text-red-400" />
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 mt-6">
-                <motion.button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 px-6 py-3 rounded-xl border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  ← Back
-                </motion.button>
-                <motion.button
-                  type="submit"
-                  className="flex-[2] glass-button text-white flex items-center justify-center gap-2"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    <>
-                      <FiUserPlus className="text-lg" />
-                      Create Anonymous Account
-                    </>
-                  )}
-                </motion.button>
-              </div>
+              <motion.button
+                type="submit"
+                className="w-full rounded-3xl bg-sky-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700"
+                whileHover={{ scale: loading ? 1 : 1.02 }}
+                whileTap={{ scale: loading ? 1 : 0.98 }}
+                disabled={loading}
+              >
+                {loading ? 'Creating account...' : 'Create account'}
+              </motion.button>
             </div>
-          </motion.div>
+          </div>
         </form>
 
-        {/* Login Link */}
-        <div className="mt-6 text-center pb-2">
-          <p className="text-[var(--text-secondary)] text-sm">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              className="text-purple-400 hover:text-purple-300 font-medium transition-colors"
-            >
-              Sign In
-            </Link>
-          </p>
+        <div className="mt-6 text-center text-sm text-slate-400">
+          Already have an account?{' '}
+          <Link to="/login" className="text-sky-400 hover:text-sky-300 font-medium">
+            Sign in
+          </Link>
         </div>
       </div>
-
-      {/* Privacy Notice */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="mt-4 p-4 rounded-xl bg-purple-500/5 border border-purple-500/10"
-      >
-        <div className="flex items-start gap-2">
-          <FiShield className="text-purple-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-xs font-medium text-[var(--text-primary)] mb-1">
-              Your Privacy Matters
-            </p>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Your real identity is only used for verification and is never shown publicly. 
-              You'll receive an auto-generated anonymous username and avatar.
-            </p>
-          </div>
-        </div>
-      </motion.div>
     </motion.div>
   );
 };

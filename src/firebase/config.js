@@ -7,13 +7,13 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 // Your web app's Firebase configuration
 // Replace these with your actual Firebase project config
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForDevelopment",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "conferia-app.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "conferia-app",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "conferia-app.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef1234567890",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-ABCDEFGHIJ",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBxTsRJZEsqTckiQFR77H037nLBF2Tdh_E",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "conferia.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "conferia",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "conferia.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "355970397665",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:355970397665:web:9794c3bdb3d4b614d9cea0",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || undefined,
 };
 
 // Initialize Firebase
@@ -34,7 +34,7 @@ try {
   
   // Initialize Analytics (only in browser and if supported)
   isSupported().then((supported) => {
-    if (supported && import.meta.env.PROD) {
+    if (supported && import.meta.env.PROD && firebaseConfig.measurementId) {
       analytics = getAnalytics(app);
     }
   });

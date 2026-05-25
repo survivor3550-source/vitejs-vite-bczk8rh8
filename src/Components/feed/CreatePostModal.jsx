@@ -87,12 +87,7 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
     setIsSubmitting(true);
     
     try {
-      // Firebase Firestore integration will be here
-      // await addDoc(collection(db, 'posts'), { ... });
-      
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      onSubmit(content.trim());
+      await onSubmit(content.trim());
       toast.success('Confession posted anonymously! 🎭', {
         duration: 3000,
         icon: '✨',
@@ -150,11 +145,12 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
               stiffness: 300, 
               damping: 25 
             }}
-            className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92%] max-w-lg ${
-              isExpanded ? 'h-[85vh]' : ''
-            }`}
+            className={`fixed z-50 ${
+              // Mobile: bottom sheet
+              "left-2 right-2 bottom-6 rounded-xl sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[92%] sm:max-w-lg"
+            } ${isExpanded ? 'max-h-[90vh]' : 'max-h-[80vh]'}`}
           >
-            <div className="glass-card h-full flex flex-col relative overflow-hidden">
+            <div className="glass-card h-full flex flex-col relative overflow-hidden max-h-[90vh]">
               {/* Decorative top gradient */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500" />
               
@@ -213,7 +209,7 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
               </div>
 
               {/* Content Area */}
-              <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-4">
+              <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-4 overflow-y-auto">
                 <div className="flex-1 relative">
                   <textarea
                     ref={textareaRef}

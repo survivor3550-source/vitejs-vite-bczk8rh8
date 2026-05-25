@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../../utils/date';
+import { useAuth } from '../../hooks/useAuth';
 import {
   FiHeart,
   FiThumbsDown,
@@ -18,7 +20,19 @@ import { generateUsername } from '../../utils/usernameGenerator';
 import toast from 'react-hot-toast';
 import CommentSection from './CommentSection';
 
-const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
+const PostCard = ({
+  post,
+  isAdmin = false,
+  onDelete,
+  onLike,
+  onUnlike,
+  onDislike,
+  onUndislike,
+  onRepost,
+  onAddComment,
+  isOwner = false,
+}) => {
+  const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -28,17 +42,40 @@ const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
   const [reposts, setReposts] = useState(post.reposts || 0);
   const [isReposted, setIsReposted] = useState(false);
 
+  useEffect(() => {
+    const currentUserId = user?.uid;
+    setLikes(post.likes || 0);
+    setDislikes(post.dislikes || 0);
+    setReposts(post.reposts || 0);
+    setLiked(Boolean(currentUserId && post.likedBy?.includes(currentUserId)));
+    setDisliked(Boolean(currentUserId && post.dislikedBy?.includes(currentUserId)));
+    setIsReposted(Boolean(currentUserId && post.repostedBy?.includes(currentUserId)));
+  }, [post.likes, post.dislikes, post.reposts, post.likedBy, post.dislikedBy, post.repostedBy, user?.uid]);
+
   const avatar = getRandomAvatar(post.userId);
   const username = generateUsername(post.userId);
-  
-  // Calculate deletion timer
-  const deletionDate = new Date(post.deletionDate);
+  const verified = post.verified || false;
+
+  const authorAvatar = post.avatar || avatar;
+  const authorName = post.username || username;
+
   const now = new Date();
-  const daysUntilDeletion = Math.ceil((deletionDate - now) / (1000 * 60 * 60 * 24));
-  const hoursUntilDeletion = Math.ceil((deletionDate - now) / (1000 * 60 * 60));
-  
+  const postDate = toDateSafe(post.timestamp || post.createdAt || Date.now());
+  const deletionDate = post.deletionDate ? new Date(post.deletionDate) : null;
+  const isValidPostDate = postDate instanceof Date && !Number.isNaN(postDate.getTime());
+  const isValidDeletionDate = deletionDate instanceof Date && !Number.isNaN(deletionDate.getTime());
+
+  // Calculate deletion timer
+  const daysUntilDeletion = isValidDeletionDate
+    ? Math.ceil((deletionDate - now) / (1000 * 60 * 60 * 24))
+    : null;
+  const hoursUntilDeletion = isValidDeletionDate
+    ? Math.ceil((deletionDate - now) / (1000 * 60 * 60))
+    : null;
+
   // Get deletion time display
   const getDeletionDisplay = () => {
+    if (!isValidDeletionDate) return 'No expiry set';
     if (daysUntilDeletion > 1) return `${daysUntilDeletion} days`;
     if (daysUntilDeletion === 1) return '1 day';
     if (hoursUntilDeletion > 1) return `${hoursUntilDeletion} hours`;
@@ -47,57 +84,85 @@ const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
 
   // Get deletion progress percentage
   const getDeletionProgress = () => {
-    const totalDuration = 15 * 24 * 60 * 60 * 1000; // 15 days in ms
-    const elapsed = now - new Date(post.timestamp);
-    return Math.min(100, (elapsed / totalDuration) * 100);
+    if (!isValidDeletionDate || !isValidPostDate) return 0;
+    const totalDuration = Math.max(deletionDate - postDate, 1);
+    const elapsed = now - postDate;
+    return Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
   };
 
-  const handleLike = () => {
-    if (liked) {
-      setLikes(prev => prev - 1);
-      setLiked(false);
-      toast.success('Like removed');
-    } else {
-      if (disliked) {
-        setDislikes(prev => prev - 1);
-        setDisliked(false);
-      }
-      setLikes(prev => prev + 1);
-      setLiked(true);
-      toast.success('Post liked! ❤️', { duration: 1500 });
-    }
-  };
+  useEffect(() => {
+    setLikes(post.likes || 0);
+    setDislikes(post.dislikes || 0);
+    setReposts(post.reposts || 0);
+  }, [post.likes, post.dislikes, post.reposts]);
 
-  const handleDislike = () => {
-    if (disliked) {
-      setDislikes(prev => prev - 1);
-      setDisliked(false);
-    } else {
+  const handleLike = async () => {
+    try {
       if (liked) {
-        setLikes(prev => prev - 1);
+        await onUnlike?.(post.id);
+        setLikes(prev => Math.max(prev - 1, 0));
         setLiked(false);
+      } else {
+        if (disliked) {
+          await onUndislike?.(post.id);
+          setDislikes(prev => Math.max(prev - 1, 0));
+          setDisliked(false);
+        }
+        await onLike?.(post.id);
+        setLikes(prev => prev + 1);
+        setLiked(true);
       }
-      setDislikes(prev => prev + 1);
-      setDisliked(true);
+    } catch (error) {
+      console.error('Like error:', error);
+      toast.error('Failed to update like');
     }
   };
 
-  const handleRepost = () => {
-    if (isReposted) {
-      setReposts(prev => prev - 1);
-      setIsReposted(false);
-      toast.success('Repost removed');
-    } else {
+  const handleDislike = async () => {
+    try {
+      if (disliked) {
+        await onUndislike?.(post.id);
+        setDislikes(prev => Math.max(prev - 1, 0));
+        setDisliked(false);
+      } else {
+        if (liked) {
+          await onUnlike?.(post.id);
+          setLikes(prev => Math.max(prev - 1, 0));
+          setLiked(false);
+        }
+        await onDislike?.(post.id);
+        setDislikes(prev => prev + 1);
+        setDisliked(true);
+      }
+    } catch (error) {
+      console.error('Dislike error:', error);
+      toast.error('Failed to update dislike');
+    }
+  };
+
+  const handleRepost = async () => {
+    try {
+      await onRepost?.(post.id);
       setReposts(prev => prev + 1);
       setIsReposted(true);
       toast.success('Post reposted to your feed! 🔄', { duration: 2000 });
+    } catch (error) {
+      console.error('Repost error:', error);
+      toast.error('Failed to repost');
     }
   };
 
   const handleShare = () => {
-    // Copy post link to clipboard
-    navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
-    toast.success('Link copied to clipboard! 📋');
+    const shareLink = `${window.location.origin}/post/${post.id}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareLink)
+        .then(() => toast.success('Link copied to clipboard! 📋'))
+        .catch(() => toast.success('Link ready! Copy it from your browser address bar.'));
+    } else {
+      toast.success('Copy the link from your browser address bar.');
+    }
+
     setShowMenu(false);
   };
 
@@ -117,7 +182,7 @@ const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
   };
 
   const getTimeDisplay = () => {
-    const postDate = new Date(post.timestamp);
+    if (!isValidPostDate) return 'Unknown time';
     return formatDistanceToNow(postDate, { addSuffix: true });
   };
 
@@ -134,7 +199,7 @@ const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0">
             <img
-              src={avatar}
+                src={authorAvatar}
               alt={username}
               className="w-10 h-10 rounded-full bg-[var(--bg-tertiary)] border-2 border-[var(--glass-border)]"
               loading="lazy"
@@ -145,8 +210,13 @@ const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-[var(--text-primary)] text-sm truncate">
-                {username}
+                  {authorName}
               </h3>
+                {verified && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 font-medium">
+                    Verified
+                  </span>
+                )}
               {post.isOwner && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-medium">
                   You
@@ -339,7 +409,11 @@ const PostCard = ({ post, isAdmin = false, onDelete, isOwner = false }) => {
             transition={{ duration: 0.3 }}
             className="mt-4 pt-4 border-t border-[var(--glass-border)] overflow-hidden"
           >
-            <CommentSection postId={post.id} comments={post.comments || []} />
+            <CommentSection
+              postId={post.id}
+              comments={post.comments || []}
+              onAddComment={onAddComment}
+            />
           </motion.div>
         )}
       </AnimatePresence>

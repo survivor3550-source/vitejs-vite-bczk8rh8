@@ -11,13 +11,14 @@ import {
   FiAward,
   FiStar
 } from 'react-icons/fi';
-import PostCard from '../components/feed/PostCard';
-import Skeleton from '../components/ui/Skeleton';
-import EmptyState from '../components/ui/EmptyState';
+import PostCard from '../Components/feed/PostCard';
+import Skeleton from '../Components/ui/Skeleton';
+import EmptyState from '../Components/ui/EmptyState';
 import { usePosts } from '../hooks/usePosts';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../utils/date';
 import toast from 'react-hot-toast';
 
 const TrendingPage = () => {
@@ -31,9 +32,10 @@ const TrendingPage = () => {
 
   // Calculate trending score
   const getTrendingScore = (post) => {
-    const hoursAgo = (Date.now() - new Date(post.timestamp).getTime()) / (1000 * 60 * 60);
+    const postDate = toDateSafe(post.timestamp || post.createdAt);
+    const hoursAgo = (Date.now() - postDate.getTime()) / (1000 * 60 * 60);
     const recencyWeight = Math.max(0.1, 1 - hoursAgo / 72); // Decay over 72 hours
-    return (post.likes * 2 + post.comments?.length * 3 + post.reposts * 4) * recencyWeight;
+    return ((post.likes || 0) * 2 + (post.comments?.length || 0) * 3 + (post.reposts || 0) * 4) * recencyWeight;
   };
 
   // Get top 3 trending posts
@@ -66,7 +68,7 @@ const TrendingPage = () => {
 
   // Filter posts based on timeframe
   const filteredPosts = posts.filter(post => {
-    const postDate = new Date(post.timestamp);
+    const postDate = toDateSafe(post.timestamp || post.createdAt);
     const now = new Date();
     
     switch (timeframe) {

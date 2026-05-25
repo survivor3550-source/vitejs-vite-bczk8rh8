@@ -40,7 +40,6 @@ export default defineConfig(({ command, mode }) => {
         '@hooks': path.resolve(__dirname, './src/hooks'),
         '@utils': path.resolve(__dirname, './src/utils'),
         '@assets': path.resolve(__dirname, './src/assets'),
-        '@firebase': path.resolve(__dirname, './src/firebase'),
         '@layouts': path.resolve(__dirname, './src/components/layout'),
         '@ui': path.resolve(__dirname, './src/components/ui'),
         '@auth': path.resolve(__dirname, './src/components/auth'),
@@ -239,7 +238,7 @@ export default defineConfig(({ command, mode }) => {
     // Worker configuration
     worker: {
       format: 'es',
-      plugins: [],
+      plugins: () => [],
     },
 
     // Esbuild configuration

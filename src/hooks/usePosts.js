@@ -17,14 +17,40 @@ import {
   arrayUnion,
   arrayRemove
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db, isFirebaseInitialized } from '../firebase/config';
 import { useAuth } from './useAuth';
-import { DUMMY_POSTS, DUMMY_COMMENTS, POST_DELETION_DAYS } from '../utils/constants';
+import { POST_DELETION_DAYS } from '../utils/constants';
 import { generateUsername } from '../utils/usernameGenerator';
 import { getRandomAvatar } from '../utils/avatarGenerator';
 import toast from 'react-hot-toast';
 
 const POSTS_PER_PAGE = 10;
+
+const parseDate = (value, fallback = null) => {
+  if (!value) return fallback;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : date;
+};
+
+const normalizePost = (post) => {
+  const createdAt = parseDate(post.createdAt || post.timestamp, new Date());
+  const deletionDate = parseDate(post.deletionDate, new Date(Date.now() + POST_DELETION_DAYS * 24 * 60 * 60 * 1000));
+
+  return {
+    ...post,
+    id: post.id,
+    userId: post.userId || post.uid || 'anonymous',
+    content: post.content || '',
+    likes: Number(post.likes || 0),
+    dislikes: Number(post.dislikes || 0),
+    reposts: Number(post.reposts || 0),
+    comments: Array.isArray(post.comments) ? post.comments : [],
+    status: post.status || 'active',
+    createdAt,
+    deletionDate,
+    updatedAt: parseDate(post.updatedAt, createdAt),
+  };
+};
 
 export const usePosts = (sortBy = 'latest') => {
   const [posts, setPosts] = useState([]);
@@ -34,86 +60,68 @@ export const usePosts = (sortBy = 'latest') => {
   const [lastVisible, setLastVisible] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const unsubscribeRef = useRef(null);
-  const isFirebaseReady = false; // Set to true when Firebase is configured
+  const isFirebaseReady = isFirebaseInitialized();
 
-  // Load posts (Firebase or Dummy Data)
+  // Load posts once auth and Firebase are ready
   useEffect(() => {
-    if (isFirebaseReady) {
-      // Firebase real-time listener
-      loadFirebasePosts();
-    } else {
-      // Use dummy data for development
-      loadDummyPosts();
+    if (!isFirebaseReady) {
+      console.warn('Firebase not initialized. Posts will be empty.');
+      setPosts([]);
+      setLoading(false);
+      return;
     }
+
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
+    if (!user) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
+
+    // Firebase real-time listener
+    loadFirebasePosts();
 
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
     };
-  }, [sortBy]);
+  }, [sortBy, isFirebaseReady, authLoading, user]);
 
-  // Load dummy posts for development
-  const loadDummyPosts = async () => {
-    setLoading(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    let sortedPosts = [...DUMMY_POSTS];
-
-    // Add comments to posts
-    sortedPosts = sortedPosts.map(post => ({
-      ...post,
-      comments: DUMMY_COMMENTS.filter(comment => comment.postId === post.id),
-      userId: post.userId,
-      likes: post.likes || 0,
-      dislikes: post.dislikes || 0,
-      reposts: post.reposts || 0,
-    }));
-
-    // Filter out expired posts
-    sortedPosts = sortedPosts.filter(post => {
-      const deletionDate = new Date(post.deletionDate);
-      return deletionDate > new Date();
-    });
-
-    // Sort posts based on selected filter
-    sortedPosts = sortPosts(sortedPosts, sortBy);
-
-    setPosts(sortedPosts);
-    setHasMore(false);
-    setLoading(false);
-  };
 
   // Load posts from Firebase with real-time updates
   const loadFirebasePosts = () => {
     setLoading(true);
     
+    if (!isFirebaseReady || !db) {
+      console.warn('Firebase not ready - cannot load posts from Firestore');
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       let postsQuery;
       const postsRef = collection(db, 'posts');
-      
-      // Base query - only non-deleted posts
-      const baseConstraints = [
-        where('deletionDate', '>', new Date()),
-        where('status', '==', 'active'),
-      ];
 
       switch (sortBy) {
         case 'trending':
           postsQuery = query(
             postsRef,
-            ...baseConstraints,
             orderBy('trendingScore', 'desc'),
+            orderBy('createdAt', 'desc'),
             limit(POSTS_PER_PAGE)
           );
           break;
         case 'most-liked':
           postsQuery = query(
             postsRef,
-            ...baseConstraints,
             orderBy('likes', 'desc'),
             orderBy('createdAt', 'desc'),
             limit(POSTS_PER_PAGE)
@@ -122,7 +130,6 @@ export const usePosts = (sortBy = 'latest') => {
         default: // latest
           postsQuery = query(
             postsRef,
-            ...baseConstraints,
             orderBy('createdAt', 'desc'),
             limit(POSTS_PER_PAGE)
           );
@@ -130,7 +137,7 @@ export const usePosts = (sortBy = 'latest') => {
 
       // Real-time listener
       unsubscribeRef.current = onSnapshot(postsQuery, (snapshot) => {
-        const postsData = snapshot.docs.map(doc => ({
+        const postsData = snapshot.docs.map(doc => normalizePost({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate(),
@@ -152,7 +159,6 @@ export const usePosts = (sortBy = 'latest') => {
       console.error('Error setting up posts listener:', err);
       setError(err.message);
       setLoading(false);
-      loadDummyPosts(); // Fallback to dummy data
     }
   };
 
@@ -170,8 +176,8 @@ export const usePosts = (sortBy = 'latest') => {
         case 'trending':
           postsQuery = query(
             postsRef,
-            where('deletionDate', '>', new Date()),
             orderBy('trendingScore', 'desc'),
+            orderBy('createdAt', 'desc'),
             startAfter(lastVisible),
             limit(POSTS_PER_PAGE)
           );
@@ -179,7 +185,6 @@ export const usePosts = (sortBy = 'latest') => {
         case 'most-liked':
           postsQuery = query(
             postsRef,
-            where('deletionDate', '>', new Date()),
             orderBy('likes', 'desc'),
             orderBy('createdAt', 'desc'),
             startAfter(lastVisible),
@@ -189,7 +194,6 @@ export const usePosts = (sortBy = 'latest') => {
         default:
           postsQuery = query(
             postsRef,
-            where('deletionDate', '>', new Date()),
             orderBy('createdAt', 'desc'),
             startAfter(lastVisible),
             limit(POSTS_PER_PAGE)
@@ -198,7 +202,7 @@ export const usePosts = (sortBy = 'latest') => {
 
       const snapshot = await getDocs(postsQuery);
       
-      const newPosts = snapshot.docs.map(doc => ({
+      const newPosts = snapshot.docs.map(doc => normalizePost({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate(),
@@ -224,7 +228,7 @@ export const usePosts = (sortBy = 'latest') => {
       // Firebase will auto-update via listener
       await new Promise(resolve => setTimeout(resolve, 1000));
     } else {
-      await loadDummyPosts();
+      console.warn('Firebase not ready - refresh skipped');
     }
     
     setIsRefreshing(false);
@@ -239,6 +243,7 @@ export const usePosts = (sortBy = 'latest') => {
       userId: user?.uid || 'anonymous',
       username: user?.username || generateUsername(user?.uid || 'temp'),
       avatar: user?.avatar || getRandomAvatar(user?.uid || 'temp'),
+      verified: user?.verified || false,
       likes: 0,
       dislikes: 0,
       reposts: 0,
@@ -266,6 +271,19 @@ export const usePosts = (sortBy = 'latest') => {
           });
         }
 
+        // Optimistic update: add a local copy so post appears immediately in UI
+        try {
+          const optimisticPost = normalizePost({
+            id: docRef.id,
+            ...newPost,
+            createdAt: new Date(),
+          });
+
+          setPosts(prev => [optimisticPost, ...prev]);
+        } catch (e) {
+          console.warn('Optimistic post update failed', e);
+        }
+
         toast.success('Confession posted anonymously! 🎭');
         return docRef.id;
       } catch (err) {
@@ -274,18 +292,9 @@ export const usePosts = (sortBy = 'latest') => {
         throw err;
       }
     } else {
-      // Dummy add
-      const dummyPost = {
-        ...newPost,
-        id: `post-${Date.now()}`,
-        userId: user?.uid || 'current-user',
-        createdAt: new Date(),
-        deletionDate: new Date(Date.now() + POST_DELETION_DAYS * 24 * 60 * 60 * 1000),
-      };
-
-      setPosts(prev => [dummyPost, ...prev]);
-      toast.success('Confession posted anonymously! 🎭');
-      return dummyPost.id;
+      const message = 'Firebase is not initialized. Cannot post.';
+      toast.error(message);
+      throw new Error(message);
     }
   }, [user, isFirebaseReady]);
 
@@ -309,9 +318,9 @@ export const usePosts = (sortBy = 'latest') => {
         throw err;
       }
     } else {
-      // Dummy delete
-      setPosts(prev => prev.filter(post => post.id !== postId));
-      toast.success('Post deleted successfully');
+      const message = 'Firebase is not initialized. Cannot delete post.';
+      toast.error(message);
+      throw new Error(message);
     }
   }, [user, isFirebaseReady]);
 
@@ -329,10 +338,9 @@ export const usePosts = (sortBy = 'latest') => {
         throw err;
       }
     } else {
-      // Dummy like
-      setPosts(prev => prev.map(post => 
-        post.id === postId ? { ...post, likes: (post.likes || 0) + 1 } : post
-      ));
+      const message = 'Firebase is not initialized. Cannot like post.';
+      toast.error(message);
+      throw new Error(message);
     }
   }, [user, isFirebaseReady]);
 
@@ -350,9 +358,71 @@ export const usePosts = (sortBy = 'latest') => {
         throw err;
       }
     } else {
-      setPosts(prev => prev.map(post => 
-        post.id === postId ? { ...post, likes: Math.max(0, (post.likes || 0) - 1) } : post
-      ));
+      const message = 'Firebase is not initialized. Cannot unlike post.';
+      toast.error(message);
+      throw new Error(message);
+    }
+  }, [user, isFirebaseReady]);
+
+  // Dislike post
+  const dislikePost = useCallback(async (postId) => {
+    if (isFirebaseReady && user) {
+      try {
+        const postRef = doc(db, 'posts', postId);
+        await updateDoc(postRef, {
+          dislikes: increment(1),
+          dislikedBy: arrayUnion(user.uid),
+        });
+      } catch (err) {
+        console.error('Error disliking post:', err);
+        toast.error('Failed to dislike post');
+        throw err;
+      }
+    } else {
+      const message = 'Firebase is not initialized. Cannot dislike post.';
+      toast.error(message);
+      throw new Error(message);
+    }
+  }, [user, isFirebaseReady]);
+
+  // Undislike post
+  const undislikePost = useCallback(async (postId) => {
+    if (isFirebaseReady && user) {
+      try {
+        const postRef = doc(db, 'posts', postId);
+        await updateDoc(postRef, {
+          dislikes: increment(-1),
+          dislikedBy: arrayRemove(user.uid),
+        });
+      } catch (err) {
+        console.error('Error removing dislike from post:', err);
+        throw err;
+      }
+    } else {
+      const message = 'Firebase is not initialized. Cannot remove dislike from post.';
+      toast.error(message);
+      throw new Error(message);
+    }
+  }, [user, isFirebaseReady]);
+
+  // Repost post
+  const repostPost = useCallback(async (postId) => {
+    if (isFirebaseReady && user) {
+      try {
+        const postRef = doc(db, 'posts', postId);
+        await updateDoc(postRef, {
+          reposts: increment(1),
+          repostedBy: arrayUnion(user.uid),
+        });
+      } catch (err) {
+        console.error('Error reposting post:', err);
+        toast.error('Failed to repost post');
+        throw err;
+      }
+    } else {
+      const message = 'Firebase is not initialized. Cannot repost post.';
+      toast.error(message);
+      throw new Error(message);
     }
   }, [user, isFirebaseReady]);
 
@@ -383,12 +453,9 @@ export const usePosts = (sortBy = 'latest') => {
         throw err;
       }
     } else {
-      setPosts(prev => prev.map(post => 
-        post.id === postId 
-          ? { ...post, comments: [...(post.comments || []), comment] }
-          : post
-      ));
-      toast.success('Comment added! 💬');
+      const message = 'Firebase is not initialized. Cannot add comment.';
+      toast.error(message);
+      throw new Error(message);
     }
   }, [user, isFirebaseReady]);
 
@@ -409,7 +476,9 @@ export const usePosts = (sortBy = 'latest') => {
         throw err;
       }
     } else {
-      toast.success('Post reported for review');
+      const message = 'Firebase is not initialized. Cannot report post.';
+      toast.error(message);
+      throw new Error(message);
     }
   }, [user, isFirebaseReady]);
 
@@ -425,7 +494,11 @@ export const usePosts = (sortBy = 'latest') => {
       case 'most-liked':
         return postsToSort.sort((a, b) => (b.likes || 0) - (a.likes || 0));
       default: // latest
-        return postsToSort.sort((a, b) => new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp));
+        return postsToSort.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.timestamp || Date.now());
+          const dateB = new Date(b.createdAt || b.timestamp || Date.now());
+          return dateB - dateA;
+        });
     }
   };
 
@@ -439,6 +512,9 @@ export const usePosts = (sortBy = 'latest') => {
     deletePost,
     likePost,
     unlikePost,
+    dislikePost,
+    undislikePost,
+    repostPost,
     addComment,
     reportPost,
     loadMorePosts,

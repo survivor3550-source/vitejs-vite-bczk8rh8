@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
+import { toDateSafe } from '../../utils/date';
 import {
   FiClock,
   FiCheckCircle,
@@ -22,10 +23,13 @@ import {
   FiCheck,
   FiX,
 } from 'react-icons/fi';
+import { collection, query, orderBy, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db, isFirebaseInitialized } from '../../firebase/config';
+import { AUTO_APPROVED_EMAILS } from '../../utils/constants';
 import toast from 'react-hot-toast';
 
 const PendingUsers = () => {
-  const [pendingUsers, setPendingUsers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
@@ -34,159 +38,144 @@ const PendingUsers = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(null);
 
-  // Load pending users
-  useEffect(() => {
-    loadPendingUsers();
-  }, []);
-
-  const loadPendingUsers = async () => {
+  const loadUsers = async () => {
     setLoading(true);
-    // Firebase Firestore integration will be here
-    // const snapshot = await getDocs(query(collection(db, 'users'), where('status', '==', 'pending')));
-    
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    setPendingUsers([
-      {
-        id: 'p1',
-        name: 'Aditya Kumar',
-        email: 'aditya.k@college.edu',
-        section: 'CSE-2nd Year',
-        appliedAt: new Date(Date.now() - 3600000 * 3),
-        reason: 'New student registration',
-        verificationStatus: 'pending',
-      },
-      {
-        id: 'p2',
-        name: 'Zara Sheikh',
-        email: 'zara.s@college.edu',
-        section: 'ECE-A',
-        appliedAt: new Date(Date.now() - 3600000 * 5),
-        reason: 'New student registration',
-        verificationStatus: 'pending',
-      },
-      {
-        id: 'p3',
-        name: 'Mohammed Ali',
-        email: 'mohammed.a@college.edu',
-        section: 'MECH-3rd Year',
-        appliedAt: new Date(Date.now() - 3600000 * 8),
-        reason: 'New student registration',
-        verificationStatus: 'pending',
-      },
-      {
-        id: 'p4',
-        name: 'Ananya Gupta',
-        email: 'ananya.g@college.edu',
-        section: 'IT-B',
-        appliedAt: new Date(Date.now() - 3600000 * 12),
-        reason: 'Transfer student',
-        verificationStatus: 'pending',
-      },
-      {
-        id: 'p5',
-        name: 'Rohan Deshmukh',
-        email: 'rohan.d@college.edu',
-        section: 'CIVIL-4th Year',
-        appliedAt: new Date(Date.now() - 3600000 * 24),
-        reason: 'New student registration',
-        verificationStatus: 'pending',
-      },
-      {
-        id: 'p6',
-        name: 'Neha Kapoor',
-        email: 'neha.k@college.edu',
-        section: 'EEE-B',
-        appliedAt: new Date(Date.now() - 3600000 * 36),
-        reason: 'Re-registration',
-        verificationStatus: 'pending',
-      },
-      {
-        id: 'p7',
-        name: 'Amit Verma',
-        email: 'amit.v@college.edu',
-        section: 'CSE-C',
-        appliedAt: new Date(Date.now() - 3600000 * 48),
-        reason: 'New student registration',
-        verificationStatus: 'pending',
-      },
-    ]);
-    
-    setLoading(false);
+    if (!isFirebaseInitialized() || !db) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const usersRef = collection(db, 'users');
+      const usersQuery = query(usersRef, orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(usersQuery);
+      const loadedUsers = snapshot.docs.map((docSnap) => {
+        const userData = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...userData,
+          appliedAt: toDateSafe(userData.createdAt),
+        };
+      });
+
+      setUsers(loadedUsers);
+      setLoading(false);
+
+      // Auto-approve known testing emails if they are still pending
+      loadedUsers.forEach((user) => {
+        if (AUTO_APPROVED_EMAILS.includes(user.email?.toLowerCase()) && user.status !== 'active') {
+          updateDoc(doc(db, 'users', user.id), {
+            status: 'active',
+            updatedAt: serverTimestamp(),
+          }).catch(console.error);
+        }
+      });
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      toast.error('Failed to load pending users');
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await loadPendingUsers();
+    await loadUsers();
     setIsRefreshing(false);
     toast.success('List refreshed! 🔄');
   };
 
+  const updateUserStatus = async (userId, updates) => {
+    if (!isFirebaseInitialized() || !db) return;
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      });
+      setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, ...updates } : user)));
+    } catch (err) {
+      console.error('Error updating user:', err);
+      toast.error('Failed to update user');
+      throw err;
+    }
+  };
+
   const handleApprove = async (userId) => {
-    // Firebase: Update user status to 'active'
-    // await updateDoc(doc(db, 'users', userId), { status: 'active', approvedAt: new Date() });
-    
-    setPendingUsers(prev => prev.filter(u => u.id !== userId));
-    setSelectedUsers(prev => {
+    const user = users.find((u) => u.id === userId);
+    await updateUserStatus(userId, { status: 'active', approvedAt: serverTimestamp() });
+    setSelectedUsers((prev) => {
       const newSet = new Set(prev);
       newSet.delete(userId);
       return newSet;
     });
-    
-    const user = pendingUsers.find(u => u.id === userId);
-    toast.success(`${user?.name || 'User'} approved successfully! ✅`, {
-      duration: 3000,
-    });
+    toast.success(`${user?.displayName || user?.username || user?.email || 'User'} approved ✅`);
   };
 
   const handleReject = async (userId) => {
-    // Firebase: Update user status to 'rejected'
-    // await updateDoc(doc(db, 'users', userId), { status: 'rejected', rejectedAt: new Date() });
-    
-    setPendingUsers(prev => prev.filter(u => u.id !== userId));
-    setSelectedUsers(prev => {
+    const user = users.find((u) => u.id === userId);
+    await updateUserStatus(userId, { status: 'rejected', rejectedAt: serverTimestamp() });
+    setSelectedUsers((prev) => {
       const newSet = new Set(prev);
       newSet.delete(userId);
       return newSet;
     });
-    
-    const user = pendingUsers.find(u => u.id === userId);
-    toast.success(`${user?.name || 'User'} rejected`, {
-      icon: '❌',
-    });
+    toast.success(`${user?.displayName || user?.username || user?.email || 'User'} rejected ❌`);
     setShowConfirmDialog(null);
   };
 
+  const handleToggleVerified = async (userId) => {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+
+    await updateUserStatus(userId, { verified: !user.verified });
+    toast.success(`Verification ${user.verified ? 'removed' : 'granted'} for ${user.displayName || user.email}`);
+  };
+
+  const handleBan = async (userId) => {
+    const user = users.find((u) => u.id === userId);
+    await updateUserStatus(userId, { status: 'banned' });
+    toast.success(`${user?.displayName || user?.email || 'User'} banned`);
+  };
+
+  const handleUnban = async (userId) => {
+    const user = users.find((u) => u.id === userId);
+    await updateUserStatus(userId, { status: 'active' });
+    toast.success(`${user?.displayName || user?.email || 'User'} unbanned`);
+  };
+
   const handleApproveAll = async () => {
-    if (pendingUsers.length === 0) return;
-    
-    if (window.confirm(`Approve all ${pendingUsers.length} pending users?`)) {
-      // Firebase: Batch update
-      for (const user of pendingUsers) {
-        await handleApprove(user.id);
-      }
-      setPendingUsers([]);
-      setSelectedUsers(new Set());
-      toast.success('All users approved! 🎉');
+    const pendingCount = users.filter((u) => u.status === 'pending').length;
+    if (pendingCount === 0) return;
+    if (!window.confirm(`Approve all ${pendingCount} pending users?`)) return;
+
+    for (const user of users.filter((u) => u.status === 'pending')) {
+      await updateUserStatus(user.id, { status: 'active', approvedAt: serverTimestamp() });
     }
+
+    setSelectedUsers(new Set());
+    toast.success('All pending users approved 🎉');
   };
 
   const handleRejectAll = async () => {
-    if (pendingUsers.length === 0) return;
-    
-    if (window.confirm(`Reject all ${pendingUsers.length} pending users? This cannot be undone.`)) {
-      // Firebase: Batch update
-      for (const user of pendingUsers) {
-        await handleReject(user.id);
-      }
-      setPendingUsers([]);
-      setSelectedUsers(new Set());
-      toast.success('All users rejected');
+    const pendingCount = users.filter((u) => u.status === 'pending').length;
+    if (pendingCount === 0) return;
+    if (!window.confirm(`Reject all ${pendingCount} pending users? This cannot be undone.`)) return;
+
+    for (const user of users.filter((u) => u.status === 'pending')) {
+      await updateUserStatus(user.id, { status: 'rejected', rejectedAt: serverTimestamp() });
     }
+
+    setSelectedUsers(new Set());
+    toast.success('All pending users rejected');
   };
 
   const handleSelectUser = (userId) => {
-    setSelectedUsers(prev => {
+    setSelectedUsers((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(userId)) {
         newSet.delete(userId);
@@ -224,50 +213,54 @@ const PendingUsers = () => {
       toast.error('No users selected');
       return;
     }
-    
-    if (window.confirm(`Reject ${selectedUsers.size} selected users?`)) {
-      for (const userId of selectedUsers) {
-        await handleReject(userId);
-      }
-      setSelectedUsers(new Set());
+
+    if (!window.confirm(`Reject ${selectedUsers.size} selected users?`)) return;
+
+    for (const userId of selectedUsers) {
+      await handleReject(userId);
     }
+
+    setSelectedUsers(new Set());
   };
 
   // Filter and sort users
-  const filteredUsers = pendingUsers
-    .filter(user => {
+  const filteredUsers = users
+    .filter((user) => user.status !== 'rejected')
+    .filter((user) => {
       if (!searchTerm) return true;
       const search = searchTerm.toLowerCase();
       return (
-        user.name.toLowerCase().includes(search) ||
-        user.email.toLowerCase().includes(search) ||
-        user.section.toLowerCase().includes(search)
+        (user.displayName || user.username || user.email || '')
+          .toLowerCase()
+          .includes(search) ||
+        (user.section || '').toLowerCase().includes(search)
       );
     })
     .sort((a, b) => {
       switch (sortBy) {
         case 'oldest':
-          return new Date(a.appliedAt) - new Date(b.appliedAt);
+          return toDateSafe(a.appliedAt) - toDateSafe(b.appliedAt);
         case 'name':
-          return a.name.localeCompare(b.name);
+          return (a.displayName || a.username || a.email)
+            .localeCompare(b.displayName || b.username || b.email);
         case 'section':
-          return a.section.localeCompare(b.section);
+          return (a.section || '').localeCompare(b.section || '');
         default: // newest
-          return new Date(b.appliedAt) - new Date(a.appliedAt);
+          return toDateSafe(b.appliedAt) - toDateSafe(a.appliedAt);
       }
     });
 
   // Statistics
   const stats = {
-    total: pendingUsers.length,
-    today: pendingUsers.filter(u => {
+    total: users.length,
+    today: users.filter((u) => {
       const today = new Date();
-      const userDate = new Date(u.appliedAt);
+      const userDate = toDateSafe(u.appliedAt);
       return userDate.toDateString() === today.toDateString();
     }).length,
-    thisWeek: pendingUsers.filter(u => {
+    thisWeek: users.filter((u) => {
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      return new Date(u.appliedAt) > weekAgo;
+      return toDateSafe(u.appliedAt) > weekAgo;
     }).length,
   };
 
@@ -330,7 +323,10 @@ const PendingUsers = () => {
             className="glass-card text-center"
           >
             <div className={`w-8 h-8 mx-auto rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-2`}>
-              <stat.icon className="text-white text-sm" />
+              {(() => {
+                const Icon = stat.icon;
+                return <Icon className="text-white text-sm" />;
+              })()}
             </div>
             <h3 className="text-xl font-bold text-[var(--text-primary)]">{stat.value}</h3>
             <p className="text-xs text-[var(--text-secondary)]">{stat.label}</p>
@@ -484,17 +480,23 @@ const PendingUsers = () => {
 
                       {/* Avatar */}
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white font-bold flex-shrink-0">
-                        {user.name.charAt(0)}
+                        {(user.displayName || user.username || user.email || 'U').charAt(0).toUpperCase()}
                       </div>
 
                       {/* User Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium text-[var(--text-primary)] text-sm truncate">
-                            {user.name}
+                            {user.displayName || user.username || user.email}
                           </h4>
-                          <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 text-xs flex-shrink-0">
-                            Pending
+                          <span className={`px-2 py-0.5 rounded-full text-xs flex-shrink-0 ${
+                            user.status === 'active'
+                              ? 'bg-green-500/10 text-green-300'
+                              : user.status === 'banned'
+                              ? 'bg-red-500/10 text-red-300'
+                              : 'bg-yellow-500/10 text-yellow-400'
+                          }`}>
+                            {user.status?.replace('_', ' ') || 'Pending'}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 mt-1">
@@ -509,7 +511,7 @@ const PendingUsers = () => {
                         </div>
                         <p className="text-xs text-[var(--text-secondary)] mt-1 flex items-center gap-1">
                           <FiClock className="text-xs" />
-                          Applied {formatDistanceToNow(user.appliedAt, { addSuffix: true })}
+                            Applied {formatDistanceToNow(toDateSafe(user.appliedAt), { addSuffix: true })}
                         </p>
                       </div>
 
@@ -533,6 +535,36 @@ const PendingUsers = () => {
                           <FiUserCheck className="text-xs" />
                           Approve
                         </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleToggleVerified(user.id)}
+                          className={`px-3 py-1.5 rounded-lg transition-colors text-xs font-medium flex items-center gap-1 ${
+                            user.verified ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' : 'bg-slate-500/10 text-slate-200 hover:bg-slate-500/20'
+                          }`}
+                        >
+                          <FiCheckCircle className="text-xs" />
+                          {user.verified ? 'Unverify' : 'Verify'}
+                        </motion.button>
+                        {user.status === 'banned' ? (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleUnban(user.id)}
+                            className="px-3 py-1.5 rounded-lg bg-green-500/10 text-green-300 hover:bg-green-500/20 transition-colors text-xs font-medium"
+                          >
+                            Unban
+                          </motion.button>
+                        ) : (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleBan(user.id)}
+                            className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-xs font-medium"
+                          >
+                            Ban
+                          </motion.button>
+                        )}
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -575,13 +607,29 @@ const PendingUsers = () => {
                               <div>
                                 <p className="text-xs text-[var(--text-secondary)] mb-1">Applied</p>
                                 <p className="text-sm text-[var(--text-primary)]">
-                                  {formatDistanceToNow(user.appliedAt, { addSuffix: true })}
+                                  {formatDistanceToNow(toDateSafe(user.appliedAt), { addSuffix: true })}
                                 </p>
                               </div>
                               <div>
                                 <p className="text-xs text-[var(--text-secondary)] mb-1">Status</p>
-                                <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 text-xs">
-                                  Awaiting Review
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                  user.status === 'active'
+                                    ? 'bg-green-500/10 text-green-300'
+                                    : user.status === 'banned'
+                                    ? 'bg-red-500/10 text-red-300'
+                                    : 'bg-yellow-500/10 text-yellow-400'
+                                }`}>
+                                  {user.status?.replace('_', ' ') || 'Pending'}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-xs text-[var(--text-secondary)] mb-1">Verified badge</p>
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                  user.verified
+                                    ? 'bg-blue-500/10 text-blue-300'
+                                    : 'bg-slate-500/10 text-slate-300'
+                                }`}>
+                                  {user.verified ? 'Verified' : 'Not verified'}
                                 </span>
                               </div>
                             </div>
@@ -612,7 +660,7 @@ const PendingUsers = () => {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-card max-w-sm w-full"
+              className="glass-card max-w-sm w-full max-h-[85vh] overflow-y-auto"
             >
               <div className="text-center">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/10 flex items-center justify-center">

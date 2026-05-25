@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiPlus, FiRefreshCw, FiArrowUp } from 'react-icons/fi';
-import PostCard from '../components/feed/PostCard';
-import CreatePostModal from '../components/feed/CreatePostModal';
-import FeedFilters from '../components/feed/FeedFilters';
-import Skeleton from '../components/ui/Skeleton';
-import EmptyState from '../components/ui/EmptyState';
+import { FiPlus, FiRefreshCw, FiArrowUp, FiBarChart2 } from 'react-icons/fi';
+import PostCard from '../Components/feed/PostCard';
+import CreatePostModal from '../Components/feed/CreatePostModal';
+import FeedFilters from '../Components/feed/FeedFilters';
+import Skeleton from '../Components/ui/Skeleton';
+import EmptyState from '../Components/ui/EmptyState';
 import { usePosts } from '../hooks/usePosts';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
 import toast from 'react-hot-toast';
 
@@ -17,7 +17,19 @@ const FeedPage = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  const { posts, loading, addPost, deletePost, refreshPosts } = usePosts(sortBy);
+  const {
+    posts,
+    loading,
+    addPost,
+    deletePost,
+    refreshPosts,
+    likePost,
+    unlikePost,
+    dislikePost,
+    undislikePost,
+    repostPost,
+    addComment,
+  } = usePosts(sortBy);
   const { user } = useAuth();
   const isAdmin = user?.email === ADMIN_EMAIL;
 
@@ -163,6 +175,12 @@ const FeedPage = () => {
                     post={post}
                     isAdmin={isAdmin}
                     onDelete={handleDeletePost}
+                    onLike={likePost}
+                    onUnlike={unlikePost}
+                    onDislike={dislikePost}
+                    onUndislike={undislikePost}
+                    onRepost={repostPost}
+                    onAddComment={addComment}
                   />
                 </motion.div>
               ))}
@@ -277,24 +295,5 @@ const FeedPage = () => {
     </div>
   );
 };
-
-// Simple BarChart icon component for stats
-const FiBarChart2 = ({ className }) => (
-  <svg
-    className={className}
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <line x1="18" y1="20" x2="18" y2="10" />
-    <line x1="12" y1="20" x2="12" y2="4" />
-    <line x1="6" y1="20" x2="6" y2="14" />
-  </svg>
-);
 
 export default FeedPage;
