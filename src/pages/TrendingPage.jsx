@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiTrendingUp, 
@@ -62,11 +62,11 @@ const TrendingPage = () => {
     toast.success('Trending feed refreshed! 🔄');
   };
 
-  const handleDeletePost = (postId) => {
+  const handleDeletePost = useCallback((postId) => {
     if (window.confirm('Are you sure you want to delete this post?')) {
       deletePost(postId);
     }
-  };
+  }, [deletePost]);
 
   const timeframes = [
     { id: 'today', label: 'Today' },
