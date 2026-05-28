@@ -10,7 +10,7 @@ import {
   getModularInstance,
   registerVersion
 } from "./chunk-WLAHDZAD.js";
-import "./chunk-EWTE5DHJ.js";
+import "./chunk-EQCVQC35.js";
 
 // node_modules/@firebase/storage/dist/index.esm2017.js
 var DEFAULT_HOST = "firebasestorage.googleapis.com";
