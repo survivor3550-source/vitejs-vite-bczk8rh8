@@ -6,10 +6,13 @@ import {
   FiUsers,
   FiFlag,
   FiBarChart2,
-  FiSettings,
   FiLogOut,
   FiHome,
+  FiActivity,
+  FiMessageSquare,
 } from 'react-icons/fi';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
 import AdminDashboard from '../Components/admin/AdminDashboard';
@@ -22,6 +25,12 @@ const AdminPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [systemStats, setSystemStats] = useState({
+    totalUsers: 0,
+    totalPosts: 0,
+    totalReports: 0,
+    activeUsers: 0,
+  });
 
   // Redirect if not admin
   useEffect(() => {
@@ -30,6 +39,23 @@ const AdminPage = () => {
       navigate('/feed');
     }
   }, [user, navigate]);
+
+  // Real-time system stats
+  useEffect(() => {
+    if (user?.email !== ADMIN_EMAIL) return;
+
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+      setSystemStats(prev => ({ ...prev, totalUsers: snap.size, activeUsers: snap.docs.filter(d => d.data().isApproved).length }));
+    });
+    const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
+      setSystemStats(prev => ({ ...prev, totalPosts: snap.size }));
+    });
+    const unsubReports = onSnapshot(collection(db, 'reports'), (snap) => {
+      setSystemStats(prev => ({ ...prev, totalReports: snap.size }));
+    });
+
+    return () => { unsubUsers(); unsubPosts(); unsubReports(); };
+  }, [user]);
 
   const handleLogout = async () => {
     await logout();
@@ -167,14 +193,14 @@ const AdminPage = () => {
           </div>
 
           {/* Page Content */}
-          <div className="p-4 lg:p-8 pb-24 lg:pb-8">
+          <div className="p-4 lg:p-8 pb-32 lg:pb-8">
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              {activeTab === 'dashboard' && <AdminDashboard />}
+              {activeTab === 'dashboard' && <AdminDashboard stats={systemStats} />}
               {activeTab === 'pending' && <PendingUsers />}
               {activeTab === 'reports' && <ReportsPanel />}
             </motion.div>

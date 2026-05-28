@@ -13,14 +13,16 @@ import {
   FiLogOut,
   FiAlertCircle,
   FiCheckCircle,
-  FiCopy,
   FiInfo,
   FiPlus,
+  FiBookOpen,
+  FiFileText,
 } from 'react-icons/fi';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseInitialized } from '../firebase/config';
 import { getRandomAvatar } from '../utils/avatarGenerator';
 import { generateUsername } from '../utils/usernameGenerator';
+import Skeleton from '../Components/ui/Skeleton';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
 import { formatDistanceToNow } from 'date-fns';
@@ -33,6 +35,7 @@ const ProfilePage = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [userPosts, setUserPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalPosts: 0,
     totalLikes: 0,
@@ -51,6 +54,7 @@ const ProfilePage = () => {
   useEffect(() => {
     if (!user?.uid || !isFirebaseInitialized() || !db) {
       setUserPosts([]);
+      setLoading(false);
       return;
     }
 
@@ -73,6 +77,7 @@ const ProfilePage = () => {
         };
       });
 
+      setLoading(false);
       setUserPosts(postsData);
       setStats({
         totalPosts: postsData.length,
@@ -82,6 +87,7 @@ const ProfilePage = () => {
       });
     }, (err) => {
       console.error('Failed to load profile posts:', err);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -121,7 +127,7 @@ const ProfilePage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="pt-6 pb-4"
       >
-        <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+        <h1 className="text-2xl md:text-4xl font-extrabold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
           Your Profile
         </h1>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -129,7 +135,7 @@ const ProfilePage = () => {
         </p>
       </motion.div>
 
-      <div className="glass-card bg-black/90 border border-white/10 text-white p-4 mb-6">
+      <div className="glass-card bg-black/40 border border-white/10 text-white p-4 mb-6 hidden sm:block">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[.3em] text-white/70 mb-2">Conferia</p>
@@ -165,9 +171,9 @@ const ProfilePage = () => {
             className="relative inline-block"
           >
             <img
-              src={avatar}
+              src={user?.avatar || avatar}
               alt={username}
-              className="w-24 h-24 rounded-full bg-[var(--bg-tertiary)] border-4 border-[var(--glass-border)] mx-auto"
+              className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-[var(--bg-tertiary)] border-4 border-[var(--glass-border)] mx-auto object-cover"
             />
             <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-[var(--bg-primary)]" />
           </motion.div>
@@ -175,15 +181,15 @@ const ProfilePage = () => {
           {/* Username */}
           <div className="mt-4">
             <div className="flex items-center justify-center gap-2">
-              <h2 className="text-2xl font-bold text-[var(--text-primary)]">{username}</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">{user?.username || username}</h2>
               {isVerified && (
                 <span className="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-300 font-medium">
                   Verified
                 </span>
               )}
             </div>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">
-              Your anonymous identity on campus
+            <p className="text-sm text-[var(--text-secondary)] mt-1 px-4 italic">
+              "{user?.bio || 'Campus confessant'}"
             </p>
           </div>
 
@@ -205,7 +211,7 @@ const ProfilePage = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-4 px-6 py-4 border-t border-[var(--glass-border)]">
+        <div className="grid grid-cols-3 gap-4 px-4 sm:px-6 py-4 border-t border-[var(--glass-border)]">
           {[
             { label: 'Posts', value: stats.totalPosts, icon: FiMessageSquare, color: 'text-blue-400' },
             { label: 'Likes', value: stats.totalLikes, icon: FiHeart, color: 'text-red-400' },
@@ -222,7 +228,7 @@ const ProfilePage = () => {
                 const Icon = stat.icon;
                 return <Icon className={`text-lg mx-auto mb-1 ${stat.color}`} />;
               })()}
-              <h3 className="text-xl font-bold text-[var(--text-primary)]">{stat.value}</h3>
+              <h3 className="text-lg md:text-xl font-bold text-[var(--text-primary)]">{stat.value}</h3>
               <p className="text-xs text-[var(--text-secondary)]">{stat.label}</p>
             </motion.div>
           ))}
@@ -230,13 +236,13 @@ const ProfilePage = () => {
       </motion.div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
         {tabs.map((tab) => (
           <motion.button
             key={tab.id}
             whileTap={{ scale: 0.95 }}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === tab.id
                 ? 'glass-button text-white'
                 : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -256,6 +262,13 @@ const ProfilePage = () => {
         transition={{ duration: 0.3 }}
       >
         {/* Profile Tab */}
+        {loading ? (
+          <div className="space-y-4">
+            <Skeleton type="post" />
+            <Skeleton type="post" />
+          </div>
+        ) : (
+          <>
         {activeTab === 'profile' && (
           <div className="space-y-4">
             {/* Account Info */}
@@ -287,10 +300,10 @@ const ProfilePage = () => {
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-tertiary)]">
-                  <FiGrid className="text-purple-400 text-lg flex-shrink-0" />
+                  <FiBookOpen className="text-purple-400 text-lg flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-secondary)]">Section / Class</p>
-                    <p className="font-medium text-sm text-[var(--text-primary)]">
+                    <p className="font-medium text-sm text-[var(--text-primary)] truncate">
                       {user?.section || 'Not provided'}
                     </p>
                   </div>
@@ -301,7 +314,7 @@ const ProfilePage = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-secondary)]">Member Since</p>
                     <p className="font-medium text-sm text-[var(--text-primary)]">
-                      {formatDistanceToNow(stats.memberSince, { addSuffix: true })}
+                      {formatDistanceToNow(stats.memberSince || new Date(), { addSuffix: true })}
                     </p>
                   </div>
                 </div>
@@ -318,6 +331,17 @@ const ProfilePage = () => {
                   </div>
                 </div>
               </div>
+            </div>
+            
+            {/* User Bio Card */}
+            <div className="glass-card">
+               <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+                <FiFileText className="text-purple-400" />
+                Your Bio
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-tertiary)] p-4 rounded-xl">
+                {user?.bio || "You haven't added a bio yet. Go to settings to personalize your anonymous identity."}
+              </p>
             </div>
 
             {/* Privacy Notice */}
@@ -337,6 +361,8 @@ const ProfilePage = () => {
               </div>
             </div>
           </div>
+        )}
+        </>
         )}
 
         {/* Settings Tab */}

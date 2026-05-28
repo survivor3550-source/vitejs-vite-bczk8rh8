@@ -6,7 +6,6 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   FiHeart,
   FiThumbsDown,
-  FiRepeat,
   FiMessageCircle,
   FiTrash2,
   FiClock,
@@ -28,8 +27,6 @@ const PostCard = ({
   onUnlike,
   onDislike,
   onUndislike,
-  onRepost,
-  onUndoRepost,
   onAddComment,
   isOwner = false,
 }) => {
@@ -40,18 +37,14 @@ const PostCard = ({
   const [showMenu, setShowMenu] = useState(false);
   const [likes, setLikes] = useState(post.likes || 0);
   const [dislikes, setDislikes] = useState(post.dislikes || 0);
-  const [reposts, setReposts] = useState(post.reposts || 0);
-  const [isReposted, setIsReposted] = useState(false);
 
   useEffect(() => {
     const currentUserId = user?.uid;
     setLikes(post.likes || 0);
     setDislikes(post.dislikes || 0);
-    setReposts(post.reposts || 0);
     setLiked(Boolean(currentUserId && post.likedBy?.includes(currentUserId)));
     setDisliked(Boolean(currentUserId && post.dislikedBy?.includes(currentUserId)));
-    setIsReposted(Boolean(currentUserId && post.repostedBy?.includes(currentUserId)));
-  }, [post.likes, post.dislikes, post.reposts, post.likedBy, post.dislikedBy, post.repostedBy, user?.uid]);
+  }, [post.likes, post.dislikes, post.likedBy, post.dislikedBy, user?.uid]);
 
   const avatar = getRandomAvatar(post.userId);
   const username = generateUsername(post.userId);
@@ -134,24 +127,6 @@ const PostCard = ({
     }
   };
 
-  const handleRepost = async () => {
-    try {
-      if (isReposted) {
-        await onUndoRepost?.(post.id);
-        setReposts(prev => Math.max(0, prev - 1));
-        setIsReposted(false);
-        toast.success('Repost removed! 🔄');
-      } else {
-        await onRepost?.(post.id);
-        setReposts(prev => prev + 1);
-        setIsReposted(true);
-        toast.success('Post reposted to your feed! 🔄', { duration: 2000 });
-      }
-    } catch (error) {
-      console.error('Repost error:', error);
-      toast.error('Failed to update repost');
-    }
-  };
 
   const handleShare = () => {
     const shareLink = `${window.location.origin}/post/${post.id}`;
@@ -383,19 +358,6 @@ const PostCard = ({
             {(post.comments?.length || 0) > 0 && (
               <span className="font-medium">{post.comments?.length || 0}</span>
             )}
-          </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={handleRepost}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-              isReposted
-                ? 'text-green-400 bg-green-500/10'
-                : 'text-[var(--text-secondary)] hover:text-green-400 hover:bg-green-500/5'
-            }`}
-          >
-            <FiRepeat />
-            {reposts > 0 && <span className="font-medium">{reposts}</span>}
           </motion.button>
         </div>
       </div>

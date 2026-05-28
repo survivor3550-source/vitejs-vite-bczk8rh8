@@ -43,7 +43,6 @@ const normalizePost = (post) => {
     content: post.content || '',
     likes: Number(post.likes || 0),
     dislikes: Number(post.dislikes || 0),
-    reposts: typeof post.reposts === 'number' ? post.reposts : 0,
     comments: Array.isArray(post.comments) ? post.comments : [],
     status: post.status || 'active',
     createdAt,
@@ -244,9 +243,7 @@ export const usePosts = (sortBy = 'latest') => {
       verified: user?.verified || false,
       likes: 0,
       dislikes: 0,
-      reposts: 0,
       comments: [],
-      trendingScore: 0,
       status: 'active',
       createdAt: new Date(),
       deletionDate: new Date(Date.now() + POST_DELETION_DAYS * 24 * 60 * 60 * 1000),
@@ -403,87 +400,6 @@ export const usePosts = (sortBy = 'latest') => {
     }
   }, [user, isFirebaseReady]);
 
-  // Repost post
-  const repostPost = useCallback(async (postId) => {
-    if (isFirebaseReady && user) {
-      try {
-        const postRef = doc(db, 'posts', postId);
-        
-        // Fetch original post data for content
-        const q = query(collection(db, 'posts'), where('__name__', '==', postId));
-        const snapshot = await getDocs(q);
-        const originalPost = snapshot.docs[0]?.data();
-        
-        if (!originalPost) throw new Error("Original post not found");
-
-        const alreadyReposted = originalPost.repostedBy?.includes(user.uid);
-
-        if (alreadyReposted) {
-          toast.error('You already reposted this');
-          return;
-        }
-
-        await updateDoc(postRef, {
-          reposts: increment(1),
-          repostedBy: arrayUnion(user.uid),
-        });
-
-        // Create a repost document for the feed
-        await addDoc(collection(db, 'posts'), {
-          content: originalPost.content,
-          userId: user.uid,
-          username: user.username || generateUsername(user.uid),
-          avatar: user.avatar || getRandomAvatar(user.uid),
-          isRepost: true,
-          parentPostId: postId,
-          createdAt: serverTimestamp(),
-          status: 'active',
-          deletionDate: originalPost.deletionDate || new Date(Date.now() + POST_DELETION_DAYS * 24 * 60 * 60 * 1000)
-        });
-      } catch (err) {
-        console.error('Error reposting post:', err);
-        toast.error('Failed to repost post');
-        throw err;
-      }
-    } else {
-      const message = 'Firebase is not initialized. Cannot repost post.';
-      toast.error(message);
-      throw new Error(message);
-    }
-  }, [user, isFirebaseReady]);
-
-  // Undo Repost
-  const undoRepost = useCallback(async (postId) => {
-    if (isFirebaseReady && user) {
-      try {
-        const postRef = doc(db, 'posts', postId);
-        
-        // 1. Update original post metadata
-        await updateDoc(postRef, {
-          reposts: increment(-1),
-          repostedBy: arrayRemove(user.uid),
-        });
-
-        // 2. Find and delete the repost document(s)
-        const q = query(
-          collection(db, 'posts'),
-          where('parentPostId', '==', postId),
-          where('userId', '==', user.uid),
-          where('isRepost', '==', true)
-        );
-        
-        const snapshot = await getDocs(q);
-        const deletePromises = snapshot.docs.map(repostDoc => deleteDoc(repostDoc.ref));
-        await Promise.all(deletePromises);
-
-      } catch (err) {
-        console.error('Error undoing repost:', err);
-        toast.error('Failed to remove repost');
-        throw err;
-      }
-    }
-  }, [user, isFirebaseReady]);
-
   // Add comment to post
   const addComment = useCallback(async (postId, content) => {
     if (!content.trim()) return;
@@ -545,8 +461,8 @@ export const usePosts = (sortBy = 'latest') => {
     switch (sort) {
       case 'trending':
         return postsToSort.sort((a, b) => {
-          const scoreA = (a.likes || 0) * 2 + (a.comments?.length || 0) * 3 + (a.reposts || 0) * 4;
-          const scoreB = (b.likes || 0) * 2 + (b.comments?.length || 0) * 3 + (b.reposts || 0) * 4;
+          const scoreA = (a.likes || 0) * 2 + (a.comments?.length || 0) * 3;
+          const scoreB = (b.likes || 0) * 2 + (b.comments?.length || 0) * 3;
           return scoreB - scoreA;
         });
       case 'most-liked':
@@ -572,8 +488,6 @@ export const usePosts = (sortBy = 'latest') => {
     unlikePost,
     dislikePost,
     undislikePost,
-    repostPost,
-    undoRepost,
     addComment,
     reportPost,
     loadMorePosts,

@@ -27,8 +27,6 @@ const FeedPage = () => {
     unlikePost,
     dislikePost,
     undislikePost,
-    repostPost,
-    undoRepost,
     addComment,
   } = usePosts(sortBy);
   const { user } = useAuth();
@@ -181,8 +179,6 @@ const FeedPage = () => {
                     onUnlike={unlikePost}
                     onDislike={dislikePost}
                     onUndislike={undislikePost}
-                    onRepost={repostPost}
-                    onUndoRepost={undoRepost}
                     onAddComment={addComment}
                   />
                 </motion.div>

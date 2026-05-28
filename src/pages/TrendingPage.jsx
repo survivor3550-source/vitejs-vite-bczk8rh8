@@ -4,8 +4,7 @@ import {
   FiTrendingUp, 
   FiClock, 
   FiHeart, 
-  FiMessageSquare, 
-  FiRepeat,
+  FiMessageSquare,
   FiRefreshCw,
   FiAlertCircle,
   FiAward,
@@ -35,8 +34,6 @@ const TrendingPage = () => {
     unlikePost,
     dislikePost,
     undislikePost,
-    repostPost,
-    undoRepost,
     addComment 
   } = usePosts('trending');
   const { user } = useAuth();
@@ -44,7 +41,7 @@ const TrendingPage = () => {
 
   // Calculate trending score
   const getTrendingScore = (post) => {
-    return (post.likes || 0) * 2 + (post.comments?.length || 0) * 3 + (post.reposts || 0) * 4;
+    return (post.likes || 0) * 2 + (post.comments?.length || 0) * 3;
   };
 
   // Get top 3 trending posts
@@ -209,8 +206,6 @@ const TrendingPage = () => {
                   onUnlike={unlikePost}
                   onDislike={dislikePost}
                   onUndislike={undislikePost}
-                  onRepost={repostPost}
-                  onUndoRepost={undoRepost}
                   onAddComment={addComment}
                 />
               </motion.div>
@@ -293,8 +288,6 @@ const TrendingPage = () => {
                       onUnlike={unlikePost}
                       onDislike={dislikePost}
                       onUndislike={undislikePost}
-                      onRepost={repostPost}
-                      onUndoRepost={undoRepost}
                       onAddComment={addComment}
                     />
                   </motion.div>
@@ -334,7 +327,7 @@ const TrendingPage = () => {
             How Trending Works
           </h3>
           <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            Posts are ranked based on likes, comments, and reposts. 
+            Posts are ranked based on likes and comments. 
             Recent activity has more weight than older interactions.
           </p>
         </motion.div>
@@ -365,12 +358,6 @@ const TrendingPage = () => {
               <span className="text-[var(--text-secondary)]">Total Comments</span>
               <span className="text-blue-400 font-medium">
                 {filteredPosts.reduce((sum, p) => sum + (p.comments?.length || 0), 0)}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-[var(--text-secondary)]">Total Reposts</span>
-              <span className="text-green-400 font-medium">
-                {filteredPosts.reduce((sum, p) => sum + (p.reposts || 0), 0)}
               </span>
             </div>
           </div>
