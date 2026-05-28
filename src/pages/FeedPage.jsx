@@ -28,6 +28,7 @@ const FeedPage = () => {
     dislikePost,
     undislikePost,
     repostPost,
+    undoRepost,
     addComment,
   } = usePosts(sortBy);
   const { user } = useAuth();
@@ -174,12 +175,14 @@ const FeedPage = () => {
                   <PostCard
                     post={post}
                     isAdmin={isAdmin}
+                    isOwner={user?.uid === post.userId}
                     onDelete={handleDeletePost}
                     onLike={likePost}
                     onUnlike={unlikePost}
                     onDislike={dislikePost}
                     onUndislike={undislikePost}
                     onRepost={repostPost}
+                    onUndoRepost={undoRepost}
                     onAddComment={addComment}
                   />
                 </motion.div>

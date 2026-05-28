@@ -43,7 +43,7 @@ const normalizePost = (post) => {
     content: post.content || '',
     likes: Number(post.likes || 0),
     dislikes: Number(post.dislikes || 0),
-    reposts: Number(post.reposts || 0),
+    reposts: typeof post.reposts === 'number' ? post.reposts : 0,
     comments: Array.isArray(post.comments) ? post.comments : [],
     status: post.status || 'active',
     createdAt,
@@ -114,7 +114,6 @@ export const usePosts = (sortBy = 'latest') => {
         case 'trending':
           postsQuery = query(
             postsRef,
-            orderBy('trendingScore', 'desc'),
             orderBy('createdAt', 'desc'),
             limit(POSTS_PER_PAGE)
           );
@@ -145,7 +144,7 @@ export const usePosts = (sortBy = 'latest') => {
           updatedAt: doc.data().updatedAt?.toDate(),
         }));
 
-        setPosts(postsData);
+        setPosts(sortPosts(postsData, sortBy));
         setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
         setHasMore(snapshot.docs.length === POSTS_PER_PAGE);
         setLoading(false);
@@ -176,7 +175,6 @@ export const usePosts = (sortBy = 'latest') => {
         case 'trending':
           postsQuery = query(
             postsRef,
-            orderBy('trendingScore', 'desc'),
             orderBy('createdAt', 'desc'),
             startAfter(lastVisible),
             limit(POSTS_PER_PAGE)
@@ -209,7 +207,7 @@ export const usePosts = (sortBy = 'latest') => {
         deletionDate: doc.data().deletionDate?.toDate(),
       }));
 
-      setPosts(prev => [...prev, ...newPosts]);
+      setPosts(prev => sortPosts([...prev, ...newPosts], sortBy));
       setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       setHasMore(snapshot.docs.length === POSTS_PER_PAGE);
     } catch (err) {
@@ -410,9 +408,37 @@ export const usePosts = (sortBy = 'latest') => {
     if (isFirebaseReady && user) {
       try {
         const postRef = doc(db, 'posts', postId);
+        
+        // Fetch original post data for content
+        const q = query(collection(db, 'posts'), where('__name__', '==', postId));
+        const snapshot = await getDocs(q);
+        const originalPost = snapshot.docs[0]?.data();
+        
+        if (!originalPost) throw new Error("Original post not found");
+
+        const alreadyReposted = originalPost.repostedBy?.includes(user.uid);
+
+        if (alreadyReposted) {
+          toast.error('You already reposted this');
+          return;
+        }
+
         await updateDoc(postRef, {
           reposts: increment(1),
           repostedBy: arrayUnion(user.uid),
+        });
+
+        // Create a repost document for the feed
+        await addDoc(collection(db, 'posts'), {
+          content: originalPost.content,
+          userId: user.uid,
+          username: user.username || generateUsername(user.uid),
+          avatar: user.avatar || getRandomAvatar(user.uid),
+          isRepost: true,
+          parentPostId: postId,
+          createdAt: serverTimestamp(),
+          status: 'active',
+          deletionDate: originalPost.deletionDate || new Date(Date.now() + POST_DELETION_DAYS * 24 * 60 * 60 * 1000)
         });
       } catch (err) {
         console.error('Error reposting post:', err);
@@ -423,6 +449,38 @@ export const usePosts = (sortBy = 'latest') => {
       const message = 'Firebase is not initialized. Cannot repost post.';
       toast.error(message);
       throw new Error(message);
+    }
+  }, [user, isFirebaseReady]);
+
+  // Undo Repost
+  const undoRepost = useCallback(async (postId) => {
+    if (isFirebaseReady && user) {
+      try {
+        const postRef = doc(db, 'posts', postId);
+        
+        // 1. Update original post metadata
+        await updateDoc(postRef, {
+          reposts: increment(-1),
+          repostedBy: arrayRemove(user.uid),
+        });
+
+        // 2. Find and delete the repost document(s)
+        const q = query(
+          collection(db, 'posts'),
+          where('parentPostId', '==', postId),
+          where('userId', '==', user.uid),
+          where('isRepost', '==', true)
+        );
+        
+        const snapshot = await getDocs(q);
+        const deletePromises = snapshot.docs.map(repostDoc => deleteDoc(repostDoc.ref));
+        await Promise.all(deletePromises);
+
+      } catch (err) {
+        console.error('Error undoing repost:', err);
+        toast.error('Failed to remove repost');
+        throw err;
+      }
     }
   }, [user, isFirebaseReady]);
 
@@ -515,6 +573,7 @@ export const usePosts = (sortBy = 'latest') => {
     dislikePost,
     undislikePost,
     repostPost,
+    undoRepost,
     addComment,
     reportPost,
     loadMorePosts,

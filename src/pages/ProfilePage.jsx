@@ -9,7 +9,6 @@ import {
   FiClock,
   FiMessageSquare,
   FiHeart,
-  FiActivity,
   FiEdit2,
   FiLogOut,
   FiAlertCircle,
@@ -111,7 +110,6 @@ const ProfilePage = () => {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: FiUser },
-    { id: 'activity', label: 'Activity', icon: FiActivity },
     { id: 'settings', label: 'Settings', icon: FiSettings },
   ];
 
@@ -338,54 +336,6 @@ const ProfilePage = () => {
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Activity Tab */}
-        {activeTab === 'activity' && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-              <FiMessageSquare className="text-purple-400" />
-              Your Recent Posts
-            </h3>
-            
-            {userPosts.length === 0 ? (
-              <div className="glass-card text-center py-8">
-                <FiMessageSquare className="text-3xl text-[var(--text-secondary)] mx-auto mb-2 opacity-50" />
-                <p className="text-sm text-[var(--text-secondary)]">
-                  No posts yet. Start sharing!
-                </p>
-              </div>
-            ) : (
-              userPosts.map((post, index) => (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="glass-card"
-                >
-                  <p className="text-sm text-[var(--text-primary)] mb-3">
-                    {post.content}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                    <span>
-                            {formatDistanceToNow(post.createdAt, { addSuffix: true })}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1">
-                        <FiHeart className="text-red-400" />
-                        {post.likes}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <FiMessageSquare className="text-blue-400" />
-                        {post.comments}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))
-            )}
           </div>
         )}
 

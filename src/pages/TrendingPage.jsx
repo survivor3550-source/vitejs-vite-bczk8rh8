@@ -26,16 +26,25 @@ const TrendingPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [topPosts, setTopPosts] = useState([]);
   
-  const { posts, loading, deletePost, refreshPosts } = usePosts('trending');
+  const { 
+    posts, 
+    loading, 
+    deletePost, 
+    refreshPosts,
+    likePost,
+    unlikePost,
+    dislikePost,
+    undislikePost,
+    repostPost,
+    undoRepost,
+    addComment 
+  } = usePosts('trending');
   const { user } = useAuth();
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   // Calculate trending score
   const getTrendingScore = (post) => {
-    const postDate = toDateSafe(post.timestamp || post.createdAt);
-    const hoursAgo = (Date.now() - postDate.getTime()) / (1000 * 60 * 60);
-    const recencyWeight = Math.max(0.1, 1 - hoursAgo / 72); // Decay over 72 hours
-    return ((post.likes || 0) * 2 + (post.comments?.length || 0) * 3 + (post.reposts || 0) * 4) * recencyWeight;
+    return (post.likes || 0) * 2 + (post.comments?.length || 0) * 3 + (post.reposts || 0) * 4;
   };
 
   // Get top 3 trending posts
@@ -194,7 +203,15 @@ const TrendingPage = () => {
                 <PostCard
                   post={post}
                   isAdmin={isAdmin}
+                  isOwner={user?.uid === post.userId}
                   onDelete={handleDeletePost}
+                  onLike={likePost}
+                  onUnlike={unlikePost}
+                  onDislike={dislikePost}
+                  onUndislike={undislikePost}
+                  onRepost={repostPost}
+                  onUndoRepost={undoRepost}
+                  onAddComment={addComment}
                 />
               </motion.div>
             ))}
@@ -270,7 +287,15 @@ const TrendingPage = () => {
                     <PostCard
                       post={post}
                       isAdmin={isAdmin}
+                      isOwner={user?.uid === post.userId}
                       onDelete={handleDeletePost}
+                      onLike={likePost}
+                      onUnlike={unlikePost}
+                      onDislike={dislikePost}
+                      onUndislike={undislikePost}
+                      onRepost={repostPost}
+                      onUndoRepost={undoRepost}
+                      onAddComment={addComment}
                     />
                   </motion.div>
                 ))}

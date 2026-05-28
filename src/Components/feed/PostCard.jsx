@@ -29,6 +29,7 @@ const PostCard = ({
   onDislike,
   onUndislike,
   onRepost,
+  onUndoRepost,
   onAddComment,
   isOwner = false,
 }) => {
@@ -89,13 +90,6 @@ const PostCard = ({
     const elapsed = now - postDate;
     return Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
   };
-
-  useEffect(() => {
-    setLikes(post.likes || 0);
-    setDislikes(post.dislikes || 0);
-    setReposts(post.reposts || 0);
-  }, [post.likes, post.dislikes, post.reposts]);
-
   const handleLike = async () => {
     try {
       if (liked) {
@@ -142,13 +136,20 @@ const PostCard = ({
 
   const handleRepost = async () => {
     try {
-      await onRepost?.(post.id);
-      setReposts(prev => prev + 1);
-      setIsReposted(true);
-      toast.success('Post reposted to your feed! 🔄', { duration: 2000 });
+      if (isReposted) {
+        await onUndoRepost?.(post.id);
+        setReposts(prev => Math.max(0, prev - 1));
+        setIsReposted(false);
+        toast.success('Repost removed! 🔄');
+      } else {
+        await onRepost?.(post.id);
+        setReposts(prev => prev + 1);
+        setIsReposted(true);
+        toast.success('Post reposted to your feed! 🔄', { duration: 2000 });
+      }
     } catch (error) {
       console.error('Repost error:', error);
-      toast.error('Failed to repost');
+      toast.error('Failed to update repost');
     }
   };
 
