@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { toDateSafe } from '../../utils/date';
@@ -30,6 +31,7 @@ const PostCard = ({
   onAddComment,
   isOwner = false,
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
@@ -45,6 +47,11 @@ const PostCard = ({
     setLiked(Boolean(currentUserId && post.likedBy?.includes(currentUserId)));
     setDisliked(Boolean(currentUserId && post.dislikedBy?.includes(currentUserId)));
   }, [post.likes, post.dislikes, post.likedBy, post.dislikedBy, user?.uid]);
+
+  const handleProfileClick = (e) => {
+    e.stopPropagation();
+    navigate(`/profile/${post.userId}`);
+  };
 
   const avatar = getRandomAvatar(post.userId);
   const username = generateUsername(post.userId);
@@ -168,24 +175,33 @@ const PostCard = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-      className="glass-card hover:shadow-lg hover:shadow-purple-500/5 transition-shadow duration-300"
+      className="glass-card hover:shadow-lg hover:shadow-purple-500/5 transition-shadow duration-300 overflow-hidden"
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-shrink-0">
+      <div className="flex items-start justify-between mb-3 sm:mb-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <motion.div 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleProfileClick}
+            className="relative flex-shrink-0 cursor-pointer"
+          >
             <img
                 src={authorAvatar}
               alt={username}
-              className="w-10 h-10 rounded-full bg-[var(--bg-tertiary)] border-2 border-[var(--glass-border)]"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[var(--bg-tertiary)] border-2 border-[var(--glass-border)]"
               loading="lazy"
             />
             <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-400 rounded-full border-2 border-[var(--bg-primary)]" 
                  title="Online" />
-          </div>
-          <div className="min-w-0">
+          </motion.div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-[var(--text-primary)] text-sm truncate">
+              <h3 
+                onClick={handleProfileClick}
+                className="font-semibold text-[var(--text-primary)] text-sm truncate cursor-pointer hover:text-purple-400 transition-colors"
+              >
                   {authorName}
               </h3>
                 {verified && (
@@ -206,10 +222,10 @@ const PostCard = ({
         </div>
 
         {/* More Options Menu */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
+            className="p-2.5 sm:p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
           >
             <FiMoreHorizontal className="text-lg" />
           </button>
@@ -264,16 +280,16 @@ const PostCard = ({
       </div>
 
       {/* Content */}
-      <div className="mb-4">
-        <p className="text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap break-words">
+      <div className="mb-3 sm:mb-4">
+        <p className="text-[var(--text-primary)] text-[15px] sm:text-base leading-relaxed whitespace-pre-wrap break-words">
           {post.content}
         </p>
       </div>
 
       {/* Deletion Timer */}
-      <div className="mb-4 p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--glass-border)]">
+      <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--glass-border)]">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <motion.div
               animate={{ rotate: daysUntilDeletion <= 2 ? [0, -10, 10, -10, 0] : 0 }}
               transition={{ duration: 2, repeat: daysUntilDeletion <= 2 ? Infinity : 0 }}
@@ -284,7 +300,7 @@ const PostCard = ({
                 'text-blue-400'
               }`} />
             </motion.div>
-            <span className="text-xs text-[var(--text-secondary)]">
+            <span className="text-[11px] sm:text-xs text-[var(--text-secondary)] truncate">
               {daysUntilDeletion <= 0 ? (
                 <span className="text-red-400 font-medium">Deleting soon</span>
               ) : (
@@ -293,7 +309,7 @@ const PostCard = ({
             </span>
           </div>
           {daysUntilDeletion <= 3 && (
-            <FiAlertTriangle className={`text-xs ${
+            <FiAlertTriangle className={`text-[10px] sm:text-xs flex-shrink-0 ${
               daysUntilDeletion <= 1 ? 'text-red-400' : 'text-amber-400'
             }`} />
           )}
@@ -320,7 +336,7 @@ const PostCard = ({
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={handleLike}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+            className={`flex items-center gap-1.5 px-3 py-3 sm:py-2 rounded-lg text-sm transition-all duration-200 touch-manipulation ${
               liked
                 ? 'text-purple-400 bg-purple-500/10'
                 : 'text-[var(--text-secondary)] hover:text-purple-400 hover:bg-purple-500/5'
@@ -333,7 +349,7 @@ const PostCard = ({
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={handleDislike}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+            className={`flex items-center gap-1.5 px-3 py-3 sm:py-2 rounded-lg text-sm transition-all duration-200 touch-manipulation ${
               disliked
                 ? 'text-red-400 bg-red-500/10'
                 : 'text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/5'
@@ -348,7 +364,7 @@ const PostCard = ({
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setShowComments(!showComments)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+            className={`flex items-center gap-1.5 px-3 py-3 sm:py-2 rounded-lg text-sm transition-all duration-200 touch-manipulation ${
               showComments
                 ? 'text-blue-400 bg-blue-500/10'
                 : 'text-[var(--text-secondary)] hover:text-blue-400 hover:bg-blue-500/5'

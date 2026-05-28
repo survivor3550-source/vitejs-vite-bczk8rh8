@@ -100,7 +100,7 @@ const FeedPage = () => {
               whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="p-2 rounded-xl glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="p-2.5 sm:p-2 rounded-xl glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors touch-manipulation"
               title="Refresh feed"
             >
               <FiRefreshCw className={`text-lg ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -228,7 +228,7 @@ const FeedPage = () => {
             className="fixed bottom-40 right-6 lg:bottom-24 lg:right-8 z-40 w-10 h-10 rounded-full glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors"
             aria-label="Scroll to top"
           >
-            <FiArrowUp className="text-lg" />
+            <FiArrowUp className="text-xl" />
           </motion.button>
         )}
       </AnimatePresence>

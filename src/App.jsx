@@ -292,6 +292,21 @@ function App() {
                 } 
               />
 
+              <Route 
+                path="/profile/:userId" 
+                element={
+                  <AuthGuard>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      <ProfilePage />
+                    </motion.div>
+                  </AuthGuard>
+                } 
+              />
+
               {/* Admin Routes - Requires Admin Access */}
               <Route 
                 path="/admin" 

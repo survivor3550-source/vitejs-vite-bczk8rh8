@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   FiUser, 
@@ -18,11 +19,12 @@ import {
   FiBookOpen,
   FiFileText,
 } from 'react-icons/fi';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, isFirebaseInitialized } from '../firebase/config';
 import { getRandomAvatar } from '../utils/avatarGenerator';
 import { generateUsername } from '../utils/usernameGenerator';
 import Skeleton from '../Components/ui/Skeleton';
+import PostCard from '../Components/feed/PostCard';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { ADMIN_EMAIL } from '../utils/constants';
 import { formatDistanceToNow } from 'date-fns';
@@ -32,36 +34,74 @@ import CreatePostModal from '../Components/feed/CreatePostModal';
 import { usePosts } from '../hooks/usePosts';
 
 const ProfilePage = () => {
+  const { userId } = useParams();
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [profileUser, setProfileUser] = useState(null);
   const [stats, setStats] = useState({
     totalPosts: 0,
     totalLikes: 0,
     totalComments: 0,
-    memberSince: toDateSafe(user?.createdAt),
+    memberSince: null,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const { addPost } = usePosts('latest');
+  const { 
+    addPost, 
+    deletePost, 
+    likePost, 
+    unlikePost, 
+    dislikePost, 
+    undislikePost, 
+    addComment 
+  } = usePosts('latest');
 
-  const avatar = user?.avatar || getRandomAvatar(user?.uid || 'default');
-  const username = user?.username || generateUsername(user?.uid || 'default');
-  const isAdmin = user?.email === ADMIN_EMAIL;
-  const isVerified = user?.verified;
+  const isOwnProfile = !userId || userId === user?.uid;
+  const targetUserId = userId || user?.uid;
+
+  const canViewPrivateData = isOwnProfile || user?.email === ADMIN_EMAIL;
+
+  const avatar = profileUser?.avatar || getRandomAvatar(targetUserId || 'default');
+  const username = profileUser?.username || generateUsername(targetUserId || 'default');
+  const isAdmin = profileUser?.email === ADMIN_EMAIL;
+  const isVerified = profileUser?.verified;
 
   useEffect(() => {
-    if (!user?.uid || !isFirebaseInitialized() || !db) {
+    if (!targetUserId || !isFirebaseInitialized() || !db) {
       setUserPosts([]);
       setLoading(false);
       return;
     }
 
+    const fetchProfileUser = async () => {
+      if (isOwnProfile) {
+        setProfileUser(user);
+      } else {
+        try {
+          const userRef = doc(db, 'users', targetUserId);
+          const docSnap = await getDoc(userRef);
+          if (docSnap.exists()) {
+            setProfileUser({ id: docSnap.id, ...docSnap.data() });
+          } else {
+            toast.error('User not found');
+            navigate('/feed');
+          }
+        } catch (error) {
+          console.error('Error fetching profile user:', error);
+          toast.error('Could not load profile');
+        }
+      }
+    };
+
+    fetchProfileUser();
+
     const postsRef = collection(db, 'posts');
     const postsQuery = query(
       postsRef,
-      where('userId', '==', user.uid),
+      where('userId', '==', targetUserId),
       where('status', '==', 'active'),
       orderBy('createdAt', 'desc')
     );
@@ -83,7 +123,7 @@ const ProfilePage = () => {
         totalPosts: postsData.length,
         totalLikes: postsData.reduce((sum, post) => sum + (post.likes || 0), 0),
         totalComments: postsData.reduce((sum, post) => sum + (post.comments?.length || 0), 0),
-        memberSince: toDateSafe(user?.createdAt),
+        memberSince: toDateSafe(profileUser?.createdAt),
       });
     }, (err) => {
       console.error('Failed to load profile posts:', err);
@@ -91,7 +131,7 @@ const ProfilePage = () => {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [targetUserId, user, isOwnProfile, navigate, profileUser?.createdAt]);
 
   const handleCopyUsername = () => {
     navigator.clipboard.writeText(username);
@@ -107,17 +147,20 @@ const ProfilePage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    if (window.confirm('Are you sure you want to sign out?')) {
-      await logout();
-      toast.success('Signed out successfully');
+  const handleDeletePost = (postId) => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      deletePost(postId);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
   };
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: FiUser },
-    { id: 'settings', label: 'Settings', icon: FiSettings },
-  ];
+    isOwnProfile && { id: 'settings', label: 'Settings', icon: FiSettings },
+  ].filter(Boolean);
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24 lg:pb-8">
@@ -128,10 +171,10 @@ const ProfilePage = () => {
         className="pt-6 pb-4"
       >
         <h1 className="text-2xl md:text-4xl font-extrabold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-          Your Profile
+          {isOwnProfile ? 'Your Profile' : `${username}'s Profile`}
         </h1>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Manage your anonymous identity
+          {isOwnProfile ? 'Manage your anonymous identity' : 'Viewing campus confessant'}
         </p>
       </motion.div>
 
@@ -139,13 +182,19 @@ const ProfilePage = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[.3em] text-white/70 mb-2">Conferia</p>
-            <h2 className="text-xl font-semibold">Anonymous posting backed by verified moderation</h2>
+            <h2 className="text-xl font-semibold">
+              {isOwnProfile ? 'Your Identity is Safe' : (canViewPrivateData ? 'Moderator Access' : 'Verified Campus Contributions')}
+            </h2>
             <p className="text-xs text-white/70 mt-1 max-w-xl">
-              Your private profile is only visible to you and administrators. Verified students earn a trusted badge across the network.
+              {isOwnProfile 
+                ? 'Your private details are only visible to you. Verified students earn a trusted badge.' 
+                : (canViewPrivateData 
+                    ? 'Admin override active: Viewing real name and email for moderation and safety purposes.' 
+                    : 'User identities are protected. Showing public safe contribution history and campus stats.')}
             </p>
           </div>
           <div className="text-right text-xs text-white/60">
-            <span className="block">Real Firebase profile data</span>
+            <span className="block">{isOwnProfile ? 'Account details private' : 'Contribution score public'}</span>
             <span className="block">Auto-approved users: test102@gmail.com</span>
           </div>
         </div>
@@ -171,7 +220,7 @@ const ProfilePage = () => {
             className="relative inline-block"
           >
             <img
-              src={user?.avatar || avatar}
+              src={avatar}
               alt={username}
               className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-[var(--bg-tertiary)] border-4 border-[var(--glass-border)] mx-auto object-cover"
             />
@@ -181,7 +230,7 @@ const ProfilePage = () => {
           {/* Username */}
           <div className="mt-4">
             <div className="flex items-center justify-center gap-2">
-              <h2 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">{user?.username || username}</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">{username}</h2>
               {isVerified && (
                 <span className="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-300 font-medium">
                   Verified
@@ -189,7 +238,7 @@ const ProfilePage = () => {
               )}
             </div>
             <p className="text-sm text-[var(--text-secondary)] mt-1 px-4 italic">
-              "{user?.bio || 'Campus confessant'}"
+              "{profileUser?.bio || (isOwnProfile ? 'Add a bio in settings' : 'Campus confessant')}"
             </p>
           </div>
 
@@ -236,23 +285,25 @@ const ProfilePage = () => {
       </motion.div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-        {tabs.map((tab) => (
-          <motion.button
-            key={tab.id}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'glass-button text-white'
-                : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            {(() => { const Icon = tab.icon; return <Icon className="text-base" />; })()}
-            {tab.label}
-          </motion.button>
-        ))}
-      </div>
+      {isOwnProfile && (
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+          {tabs.map((tab) => (
+            <motion.button
+              key={tab.id}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'glass-button text-white'
+                  : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {(() => { const Icon = tab.icon; return <Icon className="text-base" />; })()}
+              {tab.label}
+            </motion.button>
+          ))}
+        </div>
+      )}
 
       {/* Tab Content */}
       <motion.div
@@ -283,28 +334,36 @@ const ProfilePage = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-secondary)]">Real Name</p>
                     <p className="font-medium text-sm text-[var(--text-primary)] flex items-center gap-1">
-                      <FiShield className="text-purple-400 text-xs" />
-                      Hidden for privacy
+                      {canViewPrivateData ? (
+                        profileUser?.displayName || profileUser?.realName || 'Not provided'
+                      ) : (
+                        <>
+                          <FiShield className="text-purple-400 text-xs" />
+                          Hidden for privacy
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-tertiary)]">
-                  <FiMail className="text-purple-400 text-lg flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--text-secondary)]">Email</p>
-                    <p className="font-medium text-sm text-[var(--text-primary)] truncate">
-                      {user?.email || 'Hidden'}
-                    </p>
+                {canViewPrivateData && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-tertiary)]">
+                    <FiMail className="text-purple-400 text-lg flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-secondary)]">Email</p>
+                      <p className="font-medium text-sm text-[var(--text-primary)] truncate">
+                        {profileUser?.email || 'Hidden'}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-tertiary)]">
                   <FiBookOpen className="text-purple-400 text-lg flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-secondary)]">Section / Class</p>
                     <p className="font-medium text-sm text-[var(--text-primary)] truncate">
-                      {user?.section || 'Not provided'}
+                      {profileUser?.section || 'Not provided'}
                     </p>
                   </div>
                 </div>
@@ -325,7 +384,7 @@ const ProfilePage = () => {
                     <p className="text-xs text-[var(--text-secondary)]">Account Status</p>
                     <p className="font-medium text-sm text-green-400 flex items-center gap-1">
                       <FiCheckCircle className="text-xs" />
-                      {user?.isApproved ? 'Active' : 'Pending Approval'}
+                      {profileUser?.isApproved ? 'Active' : 'Pending Approval'}
                       {isVerified ? ' • Verified' : ''}
                     </p>
                   </div>
@@ -337,11 +396,42 @@ const ProfilePage = () => {
             <div className="glass-card">
                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
                 <FiFileText className="text-purple-400" />
-                Your Bio
+                {isOwnProfile ? 'Your Bio' : 'Bio'}
               </h3>
               <p className="text-sm text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-tertiary)] p-4 rounded-xl">
-                {user?.bio || "You haven't added a bio yet. Go to settings to personalize your anonymous identity."}
+                {profileUser?.bio || (isOwnProfile ? "You haven't added a bio yet. Go to settings to personalize your anonymous identity." : "This user hasn't added a bio yet.")}
               </p>
+            </div>
+
+            {/* Recent Posts Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <FiGrid className="text-purple-400" />
+                Recent Confessions
+              </h3>
+              
+              {userPosts.length > 0 ? (
+                <div className="space-y-4">
+                  {userPosts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      isOwner={user?.uid === post.userId}
+                      onDelete={handleDeletePost}
+                      onLike={likePost}
+                      onUnlike={unlikePost}
+                      onDislike={dislikePost}
+                      onUndislike={undislikePost}
+                      onAddComment={addComment}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="glass-card text-center py-12">
+                  <FiMessageSquare className="text-4xl text-[var(--text-secondary)] mx-auto mb-3 opacity-20" />
+                  <p className="text-[var(--text-secondary)] text-sm">No confessions shared yet</p>
+                </div>
+              )}
             </div>
 
             {/* Privacy Notice */}
@@ -353,8 +443,7 @@ const ProfilePage = () => {
                     Privacy Note
                   </h4>
                   <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                    Your real identity is only visible to system administrators for verification purposes. 
-                    Other students will only see your anonymous username and randomly generated avatar. 
+                    Real identities are hidden to maintain anonymous campus discussions.
                     Your privacy is our top priority.
                   </p>
                 </div>
@@ -427,34 +516,38 @@ const ProfilePage = () => {
       </motion.div>
 
       {/* Sign Out Button */}
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={handleLogout}
-        className="w-full mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 font-medium"
-      >
-        <FiLogOut className="text-lg" />
-        Sign Out
-      </motion.button>
+      {isOwnProfile && (
+        <>
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleLogout}
+            className="w-full mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 font-medium"
+          >
+            <FiLogOut className="text-lg" />
+            Sign Out
+          </motion.button>
 
-      <CreatePostModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handlePostSubmit}
-      />
+          <CreatePostModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSubmit={handlePostSubmit}
+          />
 
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-8 right-8 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-purple-500 text-white shadow-2xl shadow-purple-500/30 hover:bg-purple-600"
-        aria-label="Create new post"
-      >
-        <FiPlus className="text-2xl" />
-      </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsModalOpen(true)}
+            className="fixed bottom-8 right-8 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-purple-500 text-white shadow-2xl shadow-purple-500/30 hover:bg-purple-600"
+            aria-label="Create new post"
+          >
+            <FiPlus className="text-2xl" />
+          </motion.button>
+        </>
+      )}
 
       {/* App Version */}
       <p className="text-center text-xs text-[var(--text-secondary)] mt-4 pb-4">

@@ -115,10 +115,10 @@ const TrendingPage = () => {
               <FiTrendingUp className="text-white text-lg" />
             </motion.div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
                 Trending
               </h1>
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-[11px] sm:text-xs text-[var(--text-secondary)]">
                 What's hot on campus right now
               </p>
             </div>
@@ -130,7 +130,7 @@ const TrendingPage = () => {
             whileTap={{ scale: 0.95 }}
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-xl glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            className="p-2.5 sm:p-2 rounded-xl glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors touch-manipulation"
             title="Refresh trending"
           >
             <FiRefreshCw className={`text-lg ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -151,7 +151,7 @@ const TrendingPage = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setTimeframe(tf.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+            className={`px-4 py-2.5 sm:py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap touch-manipulation ${
               timeframe === tf.id
                 ? 'glass-button text-white'
                 : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'

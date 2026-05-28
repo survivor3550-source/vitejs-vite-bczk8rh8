@@ -56,7 +56,7 @@ const FeedFilters = ({ sortBy, onSortChange, totalPosts = 0 }) => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => onSortChange(filter.id)}
-                className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap group ${
+                className={`relative flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap group select-none ${
                   isActive
                     ? 'glass-button text-white'
                     : 'glass-morphism text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -104,7 +104,8 @@ const FeedFilters = ({ sortBy, onSortChange, totalPosts = 0 }) => {
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowMobileFilters(!showMobileFilters)}
-          className="w-full flex items-center justify-between glass-morphism px-4 py-3 rounded-xl text-sm"
+          className="w-full flex items-center justify-between glass-morphism px-4 py-3.5 rounded-xl text-sm touch-manipulation active:bg-white/5 transition-colors"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           <div className="flex items-center gap-2">
             {(() => {
@@ -156,7 +157,7 @@ const FeedFilters = ({ sortBy, onSortChange, totalPosts = 0 }) => {
                     onSortChange(filter.id);
                     setShowMobileFilters(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200 ${
+                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-sm transition-all duration-200 ${
                     isActive
                       ? 'bg-purple-500/20 text-purple-400'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
