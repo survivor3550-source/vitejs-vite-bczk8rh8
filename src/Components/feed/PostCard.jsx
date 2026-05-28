@@ -193,7 +193,7 @@ const PostCard = ({
                     Verified
                   </span>
                 )}
-              {post.isOwner && (
+              {isOwner && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-medium">
                   You
                 </span>

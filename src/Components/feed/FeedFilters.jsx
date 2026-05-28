@@ -218,7 +218,7 @@ const FeedFilters = ({ sortBy, onSortChange, totalPosts = 0 }) => {
         >
           <span>🔥 Trending now</span>
           <span className="w-1 h-1 rounded-full bg-[var(--text-secondary)]" />
-          <span>Based on likes & comments</span>
+          <span>Based on likes and comments</span>
           <span className="w-1 h-1 rounded-full bg-[var(--text-secondary)]" />
           <span>Updated in real-time</span>
         </motion.div>
