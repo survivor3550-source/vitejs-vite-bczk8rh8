@@ -25,7 +25,6 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
 
   const avatar = getRandomAvatar(user?.uid || 'default');
   const username = generateUsername(user?.uid || 'default');
-  
   const charCount = content.length;
   const charPercentage = (charCount / MAX_POST_CHARACTERS) * 100;
   const isNearLimit = charCount > MAX_POST_CHARACTERS * 0.8;
@@ -73,19 +72,16 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (content.trim().length === 0) {
       toast.error('Confession cannot be empty! 🤔');
       return;
     }
-    
     if (isOverLimit) {
       toast.error(`Post must be under ${MAX_POST_CHARACTERS} characters`);
       return;
     }
 
     setIsSubmitting(true);
-    
     try {
       await onSubmit(content.trim());
       toast.success('Confession posted anonymously! 🎭', {
@@ -145,15 +141,14 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
               stiffness: 300, 
               damping: 25 
             }}
-            className={`fixed z-50 ${
-              // Mobile: bottom sheet
-              "left-2 right-2 bottom-6 rounded-xl sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[92%] sm:max-w-lg"
-            } ${isExpanded ? 'max-h-[90vh]' : 'max-h-[80vh]'}`}
+            className={`fixed z-50 top-4 left-4 w-[350px] max-w-[90vw] rounded-2xl ${
+              isExpanded ? 'max-h-[90vh]' : 'max-h-[70vh]'
+            }`}
           >
             <div className="glass-card h-full flex flex-col relative overflow-hidden max-h-[90vh]">
               {/* Decorative top gradient */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500" />
-              
+
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-[var(--glass-border)]">
                 <div className="flex items-center gap-3">
@@ -218,11 +213,11 @@ const CreatePostModal = ({ isOpen, onClose, onSubmit }) => {
                     onKeyDown={handleKeyDown}
                     placeholder="What's on your mind? Share your confession anonymously..."
                     className="w-full h-full bg-transparent text-[var(--text-primary)] placeholder-gray-500 resize-none outline-none text-sm leading-relaxed min-h-[150px]"
-                    maxLength={MAX_POST_CHARACTERS + 50} // Allow slight overtyping
+                    maxLength={MAX_POST_CHARACTERS + 50}
                     autoFocus
                     disabled={isSubmitting}
                   />
-                  
+
                   {/* Empty state hint */}
                   {content.length === 0 && (
                     <div className="absolute top-0 left-0 pointer-events-none text-xs text-[var(--text-secondary)] mt-12">
