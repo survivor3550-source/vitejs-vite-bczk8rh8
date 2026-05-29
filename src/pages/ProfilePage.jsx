@@ -465,7 +465,7 @@ const ProfilePage = () => {
               </h3>
               <div className="space-y-3">
                 <button
-                  onClick={() => toast('Feature coming soon!', { icon: '🔧' })}
+                  onClick={() => toast('coming soon!', { icon: '🔧' })}
                   className="w-full flex items-center justify-between p-3 rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors text-sm"
                 >
                   <span>Change Password</span>
