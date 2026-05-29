@@ -72,14 +72,14 @@ const LandingPage = () => {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <motion.button
+            <motion.a href="https://github.com/survivor3550-source/vitejs-vite-bczk8rh8/releases/download/v1.0/Conferia.apk" target="_blank" rel="noopener noreferrer"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-full font-bold flex items-center justify-center gap-3 transition-all hover:bg-zinc-200 text-lg shadow-xl"
             >
               <FiDownload className="text-xl" />
               Download App For Android
-            </motion.button>
+            </motion.a>
             <motion.button
               disabled
               className="w-full sm:w-auto px-10 py-5 bg-transparent text-zinc-600 rounded-full font-bold border border-zinc-800 flex items-center justify-center gap-3 cursor-not-allowed text-lg"
