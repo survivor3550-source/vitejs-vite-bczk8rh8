@@ -1,1 +1,1 @@
-export const APK_URL = "#";
+export const APK_URL = "/Conferia.apk";
